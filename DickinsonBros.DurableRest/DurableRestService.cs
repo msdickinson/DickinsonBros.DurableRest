@@ -8,26 +8,34 @@ namespace DickinsonBros.DurableRest
 {
     public class DurableRestService
     {
-        internal ILoggingService<DurableRestService> _loggingService;
-        public DurableRestService(ILoggingService<DurableRestService> loggingService)
+        internal readonly ILoggingService<DurableRestService> _loggingService;
+        internal readonly RestClientFactory _restClientFactory;
+
+        public DurableRestService
+        (
+            ILoggingService<DurableRestService> loggingService,
+            RestClientFactory restClientFactory
+        )
         {
             _loggingService = loggingService;
+            _restClientFactory = restClientFactory;
         }
 
         public async Task<IRestResponse<T>> ExecuteAsync<T>
         (
-            IRestClient client,
             IRestRequest restRequest,
+            string baseURL,
             int retrys
         )
         {
+            var client = _restClientFactory.Create(baseURL);
             var response = (IRestResponse<T>)null;
             var stopwatch = (Stopwatch)null;
             var attempts = 0;
             do
             {
                 stopwatch = Stopwatch.StartNew();
-                response = await client.ExecuteTaskAsync<T>(restRequest);
+                response = await client.ExecuteAsync<T>(restRequest);
                 stopwatch.Stop();
 
                 if (response.IsSuccessful)
@@ -37,8 +45,6 @@ namespace DickinsonBros.DurableRest
 
                 attempts++;
             } while (retrys >= attempts);
-
-            //Save Data To SQL To be used in Reports
 
             _loggingService.LogErrorRedacted
             (
@@ -59,19 +65,20 @@ namespace DickinsonBros.DurableRest
         }
 
         public async Task<IRestResponse> ExecuteAsync
-    (
-        IRestClient client,
-        IRestRequest restRequest,
-        int retrys
-    )
+        (
+            IRestRequest restRequest,
+            string baseURL,
+            int retrys
+        )
         {
+            var client = _restClientFactory.Create(baseURL);
             var response = (IRestResponse)null;
             var stopwatch = (Stopwatch)null;
             var attempts = 0;
             do
             {
                 stopwatch = Stopwatch.StartNew();
-                response = await client.ExecuteTaskAsync(restRequest);
+                response = await client.ExecuteAsync(restRequest, restRequest.Method);
                 stopwatch.Stop();
 
                 if (response.IsSuccessful)
@@ -81,8 +88,6 @@ namespace DickinsonBros.DurableRest
 
                 attempts++;
             } while (retrys >= attempts);
-
-            //Save Data To SQL To be used in Reports
 
             _loggingService.LogErrorRedacted
             (

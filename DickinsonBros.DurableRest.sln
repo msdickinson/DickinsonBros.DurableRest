@@ -9,15 +9,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "1 Library", "1 Library", "{
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.DurableRest.Tests", "DickinsonBros.DurableRest.Tests\DickinsonBros.DurableRest.Tests.csproj", "{2ED1659D-C319-4712-BD99-6D7620F7342F}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "9 Misc", "9 Misc", "{DC50ADE2-B3C6-42D0-A90B-4202F0188D0A}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "9 Scripts", "9 Scripts", "{1AE6DF18-C06D-4A58-B3EE-6EFAB37DEC1C}"
 	ProjectSection(SolutionItems) = preProject
-		Scripts\CreateNugetPackage.ps1 = Scripts\CreateNugetPackage.ps1
 		Scripts\CreateNugetPackagePreRelease.ps1 = Scripts\CreateNugetPackagePreRelease.ps1
 	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "8 Intergration Runner", "8 Intergration Runner", "{CF9C151E-2D09-4085-8B69-0697BAEA9F16}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DickinsonBros.DurableRest.Runner", "DickinsonBros.DurableRest.Runner\DickinsonBros.DurableRest.Runner.csproj", "{9D95156B-95F5-4123-B3F3-8A2961322430}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,10 +28,6 @@ Global
 		{2ED1659D-C319-4712-BD99-6D7620F7342F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2ED1659D-C319-4712-BD99-6D7620F7342F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2ED1659D-C319-4712-BD99-6D7620F7342F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9D95156B-95F5-4123-B3F3-8A2961322430}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9D95156B-95F5-4123-B3F3-8A2961322430}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9D95156B-95F5-4123-B3F3-8A2961322430}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9D95156B-95F5-4123-B3F3-8A2961322430}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -44,7 +35,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{8C0E8E52-5580-49FF-BD7F-8D36936303FC} = {FBB04102-B7D5-48D4-BEFA-0BD9CFEE55EC}
 		{2ED1659D-C319-4712-BD99-6D7620F7342F} = {FBB04102-B7D5-48D4-BEFA-0BD9CFEE55EC}
-		{9D95156B-95F5-4123-B3F3-8A2961322430} = {CF9C151E-2D09-4085-8B69-0697BAEA9F16}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F7E0EB73-4D89-4509-AF91-D7AE4745CE57}
