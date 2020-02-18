@@ -1,4 +1,7 @@
 # DickinsonBros.DurableRest
+<a href="https://www.nuget.org/packages/DickinsonBros.DurableRest/">
+    <img src="https://img.shields.io/nuget/v/DickinsonBros.DurableRest">
+</a>
 
 Handles requests in a durable fashion with reporting
 
