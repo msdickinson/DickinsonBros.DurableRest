@@ -9,9 +9,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "1 Library", "1 Library", "{
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.DurableRest.Tests", "DickinsonBros.DurableRest.Tests\DickinsonBros.DurableRest.Tests.csproj", "{2ED1659D-C319-4712-BD99-6D7620F7342F}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "9 Scripts", "9 Scripts", "{1AE6DF18-C06D-4A58-B3EE-6EFAB37DEC1C}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "9 Misc", "9 Misc", "{1AE6DF18-C06D-4A58-B3EE-6EFAB37DEC1C}"
 	ProjectSection(SolutionItems) = preProject
 		Scripts\CreateNugetPackagePreRelease.ps1 = Scripts\CreateNugetPackagePreRelease.ps1
+		DickinsonBros.DurableRest.runsettings = DickinsonBros.DurableRest.runsettings
+		Scripts\Publish.yml = Scripts\Publish.yml
+		Scripts\Test.yml = Scripts\Test.yml
 	EndProjectSection
 EndProject
 Global

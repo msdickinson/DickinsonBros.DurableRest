@@ -4,17 +4,20 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using DickinsonBros.Logger.Abstractions;
+using DickinsonBros.DurableRest.Abstractions;
+
 namespace DickinsonBros.DurableRest
 {
-    public class DurableRestService
+    public class DurableRestService : IDurableRestService
     {
         internal readonly ILoggingService<DurableRestService> _loggingService;
-        internal readonly RestClientFactory _restClientFactory;
+        internal readonly IRestClientFactory _restClientFactory;
+        internal const string DurableRestMessage = "DurableRest";
 
         public DurableRestService
         (
             ILoggingService<DurableRestService> loggingService,
-            RestClientFactory restClientFactory
+            IRestClientFactory restClientFactory
         )
         {
             _loggingService = loggingService;
@@ -28,7 +31,7 @@ namespace DickinsonBros.DurableRest
             int retrys
         )
         {
-            var client = _restClientFactory.Create(baseURL);
+            var client =  _restClientFactory.Create(baseURL);
             var response = (IRestResponse<T>)null;
             var stopwatch = (Stopwatch)null;
             var attempts = 0;
@@ -37,30 +40,49 @@ namespace DickinsonBros.DurableRest
                 stopwatch = Stopwatch.StartNew();
                 response = await client.ExecuteAsync<T>(restRequest);
                 stopwatch.Stop();
+                attempts++;
 
                 if (response.IsSuccessful)
                 {
                     break;
                 }
-
-                attempts++;
             } while (retrys >= attempts);
 
-            _loggingService.LogErrorRedacted
+            if(!response.IsSuccessful)
+            {
+                _loggingService.LogErrorRedacted
+                (
+                    DurableRestMessage,
+                    response.ErrorException,
+                    new Dictionary<string, object>
+                    {
+                        { "Attempts", attempts },
+                        { "BaseUrl", client.BaseUrl },
+                        { "Resource", restRequest.Resource },
+                        { "Request",  restRequest },
+                        { "Content", response.Content },
+                        { "ElapsedMilliseconds", stopwatch.ElapsedMilliseconds },
+                        { "StatusCode", response.StatusCode }
+                    }
+                );
+                return response;
+            }
+         
+            _loggingService.LogInformationRedacted
             (
-                "DurableRest",
-                response.ErrorException,
+                DurableRestMessage,
                 new Dictionary<string, object>
                 {
                     { "Attempts", attempts },
                     { "BaseUrl", client.BaseUrl },
                     { "Resource", restRequest.Resource },
-                    { "Request",  response.Request },
+                    { "Request",  restRequest },
                     { "Content", response.Content },
                     { "ElapsedMilliseconds", stopwatch.ElapsedMilliseconds },
                     { "StatusCode", response.StatusCode }
                 }
             );
+           
             return response;
         }
 
@@ -80,30 +102,50 @@ namespace DickinsonBros.DurableRest
                 stopwatch = Stopwatch.StartNew();
                 response = await client.ExecuteAsync(restRequest, restRequest.Method);
                 stopwatch.Stop();
+                attempts++;
 
                 if (response.IsSuccessful)
                 {
                     break;
                 }
 
-                attempts++;
             } while (retrys >= attempts);
 
-            _loggingService.LogErrorRedacted
+            if (!response.IsSuccessful)
+            {
+                _loggingService.LogErrorRedacted
+                (
+                    DurableRestMessage,
+                    response.ErrorException,
+                    new Dictionary<string, object>
+                    {
+                        { "Attempts", attempts },
+                        { "BaseUrl", client.BaseUrl },
+                        { "Resource", restRequest.Resource },
+                        { "Request",  restRequest },
+                        { "Content", response.Content },
+                        { "ElapsedMilliseconds", stopwatch.ElapsedMilliseconds },
+                        { "StatusCode", response.StatusCode }
+                    }
+                );
+                return response;
+            }
+
+            _loggingService.LogInformationRedacted
             (
-                "DurableRest",
-                response.ErrorException,
+                DurableRestMessage,
                 new Dictionary<string, object>
                 {
                     { "Attempts", attempts },
                     { "BaseUrl", client.BaseUrl },
                     { "Resource", restRequest.Resource },
-                    { "Request",  response.Request },
+                    { "Request",  restRequest },
                     { "Content", response.Content },
                     { "ElapsedMilliseconds", stopwatch.ElapsedMilliseconds },
                     { "StatusCode", response.StatusCode }
                 }
             );
+
             return response;
         }
     }
