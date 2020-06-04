@@ -28,7 +28,7 @@ namespace DickinsonBros.DurableRest.Tests.Extensions
                                serviceDefinition.Lifetime == ServiceLifetime.Singleton));
 
             Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(IRestRequestFactory) &&
-                               serviceDefinition.ImplementationType == typeof(IRestRequestFactory) &&
+                               serviceDefinition.ImplementationType == typeof(RestRequestFactory) &&
                                serviceDefinition.Lifetime == ServiceLifetime.Singleton));
 
 
