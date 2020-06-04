@@ -9,7 +9,7 @@
     <DebugType>Full</DebugType>
     <RepositoryUrl>https://github.com/msdickinson/DickinsonBros.DurableRest.git</RepositoryUrl>
     <Description>
-      Handles requests in a durable fashion with reporting
+      Handles requests in a durable fashion
 
       Features
       * Ability to retry requests
