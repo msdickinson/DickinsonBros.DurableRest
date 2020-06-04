@@ -85,7 +85,7 @@ Note: Logs can be redacted via configuration (see https://github.com/msdickinson
 Telemetry generated when using DickinsonBros.Telemetry and connecting it to a configured database for ITelemetry 
 See https://github.com/msdickinson/DickinsonBros.Telemetry on how to configure DickinsonBros.Telemetry and setup the database.
 
-![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.SQL/develop/elemetryRestSample.PNG)
+![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.DurableRest/develop/elemetryRestSample.PNG)
 
 
 <h2>Setup</h2>
