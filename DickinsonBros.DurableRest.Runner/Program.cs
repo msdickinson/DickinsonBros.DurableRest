@@ -47,8 +47,8 @@ namespace DickinsonBros.DurableRest.Runner
                         {
                             var restRequest = new RestRequest();
                             restRequest.Method = Method.GET;
-                            restRequest.Resource = "";
-                            var baseURL = "https://jsonplaceholder.typicode.com/todos/1";
+                            restRequest.Resource = "todos/1";
+                            var baseURL = "https://jsonplaceholder.typicode.com/";
                             var retrys = 3;
 
                             var restResponse = await durableRestService.ExecuteAsync(restRequest, baseURL, retrys).ConfigureAwait(false);
@@ -58,8 +58,8 @@ namespace DickinsonBros.DurableRest.Runner
                         {
                             var restRequest = new RestRequest();
                             restRequest.Method = Method.GET;
-                            restRequest.Resource = "";
-                            var baseURL = "https://jsonplaceholder.typicode.com/todos/1";
+                            restRequest.Resource = "todos/1";
+                            var baseURL = "https://jsonplaceholder.typicode.com/";
                             var retrys = 3;
 
                             var restResponse = await durableRestService.ExecuteAsync<Todo>(restRequest, baseURL, retrys).ConfigureAwait(false);
