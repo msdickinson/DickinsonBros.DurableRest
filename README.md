@@ -16,8 +16,6 @@ Features
 
 ```C#
 
-var durableRestService = provider.GetRequiredService<IDurableRestService>();
-
 {
     var restRequest = new RestRequest();
     restRequest.Method = Method.GET;
