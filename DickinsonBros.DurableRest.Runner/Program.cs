@@ -35,43 +35,43 @@ namespace DickinsonBros.DurableRest.Runner
         {
             try
             {
-                using (var applicationLifetime = new Services.ApplicationLifetime())
+                using var applicationLifetime = new Services.ApplicationLifetime();
+                var services = InitializeDependencyInjection();
+                ConfigureServices(services, applicationLifetime);
+                using var provider = services.BuildServiceProvider();
+                var telemetryService = provider.GetRequiredService<ITelemetryService>();
+                var durableRestService = provider.GetRequiredService<IDurableRestService>();
+
                 {
-                    var services = InitializeDependencyInjection();
-                    ConfigureServices(services, applicationLifetime);
-                    using (var provider = services.BuildServiceProvider())
+                    var restRequest = new RestRequest
                     {
-                        var telemetryService = provider.GetRequiredService<ITelemetryService>();
-                        var durableRestService = provider.GetRequiredService<IDurableRestService>();
+                        Method = Method.GET,
+                        Resource = "todos/1"
+                    };
+                    var baseURL = "https://jsonplaceholder.typicode.com/";
+                    var retrys = 3;
 
-                        {
-                            var restRequest = new RestRequest();
-                            restRequest.Method = Method.GET;
-                            restRequest.Resource = "todos/1";
-                            var baseURL = "https://jsonplaceholder.typicode.com/";
-                            var retrys = 3;
-
-                            var restResponse = await durableRestService.ExecuteAsync(restRequest, baseURL, retrys).ConfigureAwait(false);
-                        }
-
-
-                        {
-                            var restRequest = new RestRequest();
-                            restRequest.Method = Method.GET;
-                            restRequest.Resource = "todos/1";
-                            var baseURL = "https://jsonplaceholder.typicode.com/";
-                            var retrys = 3;
-
-                            var restResponse = await durableRestService.ExecuteAsync<Todo>(restRequest, baseURL, retrys).ConfigureAwait(false);
-                            Console.WriteLine("Content: " + restResponse.Content);
-                        }
-
-                        Console.WriteLine("Flush Telemetry");
-                        await telemetryService.Flush().ConfigureAwait(false);
-
-                        applicationLifetime.StopApplication();
-                    }
+                    var restResponse = await durableRestService.ExecuteAsync(restRequest, baseURL, retrys).ConfigureAwait(false);
                 }
+
+
+                {
+                    var restRequest = new RestRequest
+                    {
+                        Method = Method.GET,
+                        Resource = "todos/1"
+                    };
+                    var baseURL = "https://jsonplaceholder.typicode.com/";
+                    var retrys = 3;
+
+                    var restResponse = await durableRestService.ExecuteAsync<Todo>(restRequest, baseURL, retrys).ConfigureAwait(false);
+                    Console.WriteLine("Content: " + restResponse.Content);
+                }
+
+                Console.WriteLine("Flush Telemetry");
+                await telemetryService.FlushAsync().ConfigureAwait(false);
+
+                applicationLifetime.StopApplication();
             }
             catch (Exception e)
             {

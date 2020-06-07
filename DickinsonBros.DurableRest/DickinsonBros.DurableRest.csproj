@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <Configurations>Debug;Release</Configurations>
-    <Version>3.0.0</Version>
+    <Version>3.0.1</Version>
     <Authors>Mark Dickinson</Authors>
     <Company>DickinsonBros</Company>
     <DebugType>Full</DebugType>
@@ -21,11 +21,11 @@
 
   <ItemGroup>
     <PackageReference Include="DickinsonBros.DateTime.Abstractions" Version="1.0.0" />
-    <PackageReference Include="DickinsonBros.DurableRest.Abstractions" Version="2.0.0" />
+    <PackageReference Include="DickinsonBros.DurableRest.Abstractions" Version="3.0.0" />
     <PackageReference Include="DickinsonBros.Logger.Abstractions" Version="1.0.0" />
     <PackageReference Include="DickinsonBros.SQL.Abstractions" Version="1.2.0" />
     <PackageReference Include="DickinsonBros.Stopwatch.Abstractions" Version="1.0.0" />
-    <PackageReference Include="DickinsonBros.Telemetry.Abstractions" Version="3.0.0" />
+    <PackageReference Include="DickinsonBros.Telemetry.Abstractions" Version="4.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Hosting.Abstractions" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.1.4" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="3.1.4" />

@@ -16,17 +16,15 @@ namespace DickinsonBros.DurableRest.Runner.Services
         }
         void IConfigureOptions<TelemetryServiceOptions>.Configure(TelemetryServiceOptions options)
         {
-            using (var scope = _serviceScopeFactory.CreateScope())
-            {
-                var provider = scope.ServiceProvider;
-                var configuration = provider.GetRequiredService<IConfiguration>();
-                var certificateEncryptionService = provider.GetRequiredService<ICertificateEncryptionService<RunnerCertificateEncryptionServiceOptions>>();
-                var telemetryServiceOptions = configuration.GetSection(nameof(TelemetryServiceOptions)).Get<TelemetryServiceOptions>();
-                telemetryServiceOptions.ConnectionString = certificateEncryptionService.Decrypt(telemetryServiceOptions.ConnectionString);
-                configuration.Bind($"{nameof(TelemetryServiceOptions)}", options);
+            using var scope = _serviceScopeFactory.CreateScope();
+            var provider = scope.ServiceProvider;
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            var certificateEncryptionService = provider.GetRequiredService<ICertificateEncryptionService<RunnerCertificateEncryptionServiceOptions>>();
+            var telemetryServiceOptions = configuration.GetSection(nameof(TelemetryServiceOptions)).Get<TelemetryServiceOptions>();
+            telemetryServiceOptions.ConnectionString = certificateEncryptionService.Decrypt(telemetryServiceOptions.ConnectionString);
+            configuration.Bind($"{nameof(TelemetryServiceOptions)}", options);
 
-                options.ConnectionString = telemetryServiceOptions.ConnectionString;
-            }
+            options.ConnectionString = telemetryServiceOptions.ConnectionString;
         }
     }
 }
