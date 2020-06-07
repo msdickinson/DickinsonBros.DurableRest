@@ -42,7 +42,7 @@ Features
 }
 
 Console.WriteLine("Flush Telemetry");
-await telemetryService.Flush().ConfigureAwait(false);
+await telemetryService.FlushAsync().ConfigureAwait(false);
 ```
     info: DickinsonBros.DurableRest.DurableRestService[1]
           DurableRest

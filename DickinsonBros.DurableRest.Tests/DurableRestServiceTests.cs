@@ -31,7 +31,6 @@ namespace DickinsonBros.DurableRest.Tests
         #region DataClass
         public class DataClass
         {
-            string sample { get; set; }
         }
         #endregion
 
@@ -454,8 +453,10 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    restRequest.Resource = "resoure";
+                    IRestRequest restRequest = new RestRequest
+                    {
+                        Resource = "resoure"
+                    };
                     string baseURL = "https://www.demo.com/";
                     int retrys = 0;
 
@@ -575,8 +576,10 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    restRequest.Resource = "resoure";
+                    IRestRequest restRequest = new RestRequest
+                    {
+                        Resource = "resoure"
+                    };
                     string baseURL = "https://www.demo.com/";
                     int retrys = 1;
 
@@ -691,8 +694,10 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    restRequest.Resource = "resoure";
+                    IRestRequest restRequest = new RestRequest
+                    {
+                        Resource = "resoure"
+                    };
                     string baseURL = "https://www.demo.com/";
                     int retrys = 0;
 
@@ -828,8 +833,10 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    restRequest.Resource = "resoure";
+                    IRestRequest restRequest = new RestRequest
+                    {
+                        Resource = "resoure"
+                    };
                     string baseURL = "https://www.demo.com/";
                     int retrys = 0;
 
@@ -965,8 +972,10 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    restRequest.Resource = "resoure";
+                    IRestRequest restRequest = new RestRequest
+                    {
+                        Resource = "resoure"
+                    };
                     string baseURL = "https://www.demo.com/";
                     int retrys = 0;
 
@@ -2210,6 +2219,8 @@ namespace DickinsonBros.DurableRest.Tests
                     Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
                     Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
                     Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
@@ -2256,6 +2267,8 @@ namespace DickinsonBros.DurableRest.Tests
                     Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
                     Assert.AreEqual(TelemetryState.BadRequest, telemetryDataObserved.TelemetryState);
                     Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
@@ -2302,6 +2315,8 @@ namespace DickinsonBros.DurableRest.Tests
                     Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
                     Assert.AreEqual(TelemetryState.Failed, telemetryDataObserved.TelemetryState);
                     Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );

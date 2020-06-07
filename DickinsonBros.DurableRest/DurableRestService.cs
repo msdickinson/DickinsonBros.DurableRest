@@ -47,10 +47,10 @@ namespace DickinsonBros.DurableRest
         )
         {
             var client =  _restClientFactory.Create(baseURL);
-            var response = (IRestResponse<T>)null;
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
             var attempts = 0;
 
+            IRestResponse<T> response;
             do
             {
                 stopwatchService.Start();
@@ -83,10 +83,10 @@ namespace DickinsonBros.DurableRest
         )
         {
             var client = _restClientFactory.Create(baseURL);
-            var response = (IRestResponse)null;
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
             var attempts = 0;
 
+            IRestResponse response;
             do
             {
                 stopwatchService.Start();
@@ -192,8 +192,8 @@ namespace DickinsonBros.DurableRest
         {
             var telemetryState = statusCode switch
             {
-                int sc when (statusCode >= 200 && statusCode < 300) => TelemetryState.Successful,
-                int sc when (statusCode >= 400 && statusCode < 500) => TelemetryState.BadRequest,
+                int _ when (statusCode >= 200 && statusCode < 300) => TelemetryState.Successful,
+                int _ when (statusCode >= 400 && statusCode < 500) => TelemetryState.BadRequest,
                 _ => TelemetryState.Failed
             };
 
