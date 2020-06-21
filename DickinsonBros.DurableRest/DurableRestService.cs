@@ -99,6 +99,10 @@ namespace DickinsonBros.DurableRest
                 }
                 catch(OperationCanceledException ex)
                 {
+                    httpResponseMessage = new HttpResponseMessage
+                    {
+                        StatusCode = HttpStatusCode.GatewayTimeout
+                    };
                     stopwatchService.Stop();
                 }
 
@@ -107,14 +111,14 @@ namespace DickinsonBros.DurableRest
                     InsertDurableRestResult
                     (
                         $"{httpRequestMessage.Method} {httpRequestMessage.RequestUri}",
-                        httpResponseMessage != null ? (int)httpResponseMessage.StatusCode : (int)HttpStatusCode.RequestTimeout,
+                        (int)httpResponseMessage.StatusCode,
                         (int)stopwatchService.ElapsedMilliseconds
                     );
                 }
 
                 attempts++;
 
-                if (httpResponseMessage == null || httpResponseMessage.IsSuccessStatusCode)
+                if (httpResponseMessage.IsSuccessStatusCode)
                 {
                     break;
                 }
@@ -142,7 +146,7 @@ namespace DickinsonBros.DurableRest
                 { "BaseUrl", httpClient.BaseAddress },
                 { "Resource", httpRequestMessage.RequestUri.AbsolutePath },
                 { "RequestContent", httpRequestMessage.Content != null ? await httpRequestMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
-                { "ResponseContent", httpResponseMessage.Content != null ? await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
+                { "ResponseContent", httpResponseMessage?.Content != null ? await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
                 { "ElapsedMilliseconds", elapsedMilliseconds },
                 { "StatusCode", httpResponseMessage?.StatusCode }
             };
