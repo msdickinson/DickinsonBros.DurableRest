@@ -101,17 +101,15 @@ namespace DickinsonBros.DurableRest
                 {
                     stopwatchService.Stop();
                 }
-                finally
+
+                if (_telemetryService != null)
                 {
-                    if (_telemetryService != null)
-                    {
-                        InsertDurableRestResult
-                        (
-                            $"{httpRequestMessage.Method} {httpRequestMessage.RequestUri}",
-                            httpResponseMessage != null ? (int)httpResponseMessage.StatusCode : (int)HttpStatusCode.RequestTimeout,
-                            (int)stopwatchService.ElapsedMilliseconds
-                        );
-                    }
+                    InsertDurableRestResult
+                    (
+                        $"{httpRequestMessage.Method} {httpRequestMessage.RequestUri}",
+                        httpResponseMessage != null ? (int)httpResponseMessage.StatusCode : (int)HttpStatusCode.RequestTimeout,
+                        (int)stopwatchService.ElapsedMilliseconds
+                    );
                 }
 
                 attempts++;
