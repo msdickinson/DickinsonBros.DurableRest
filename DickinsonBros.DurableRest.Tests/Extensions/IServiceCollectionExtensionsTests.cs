@@ -23,15 +23,6 @@ namespace DickinsonBros.DurableRest.Tests.Extensions
                                            serviceDefinition.ImplementationType == typeof(DurableRestService) &&
                                            serviceDefinition.Lifetime == ServiceLifetime.Singleton));
 
-            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(IRestClientFactory) &&
-                               serviceDefinition.ImplementationType == typeof(RestClientFactory) &&
-                               serviceDefinition.Lifetime == ServiceLifetime.Singleton));
-
-            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(IRestRequestFactory) &&
-                               serviceDefinition.ImplementationType == typeof(RestRequestFactory) &&
-                               serviceDefinition.Lifetime == ServiceLifetime.Singleton));
-
-
         }
     }
 }

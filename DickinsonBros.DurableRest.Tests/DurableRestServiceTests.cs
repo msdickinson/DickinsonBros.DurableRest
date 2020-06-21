@@ -1,6 +1,6 @@
 ﻿using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.DurableRest.Abstractions;
-using DickinsonBros.DurableRest.Extensions;
+using DickinsonBros.DurableRest.Abstractions.Models;
 using DickinsonBros.Logger.Abstractions;
 using DickinsonBros.Stopwatch.Abstractions;
 using DickinsonBros.Telemetry.Abstractions;
@@ -9,9 +9,13 @@ using DickinsonBros.Test;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using RestSharp;
+using Moq.Protected;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,1183 +28,22 @@ namespace DickinsonBros.DurableRest.Tests
         public const string BASEURL = "BaseUrl";
         public const string RESOURCE = "Resource";
         public const string BODY = "Body";
-        public const string CONTENT = "Content";
+        public const string REQUEST_CONTENT = "RequestContent";
+        public const string RESPONSE_CONTENT = "ResponseContent";
         public const string ELAPSED_MILLISECONDS = "ElapsedMilliseconds";
         public const string STATUS_CODE = "StatusCode";
 
         #region DataClass
         public class DataClass
         {
+            public int UserId { get; set; }
+            public int Id { get; set; }
+            public string Title { get; set; }
+            public bool Completed { get; set; }
         }
         #endregion
 
-        #region LoginAsync
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_VaildInput_RestClientFactoryCreateCalled()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = System.Net.HttpStatusCode.OK;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    //  DateTime
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(new System.DateTime(2020, 1, 1));
-
-                    //  Stopwatch
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(100);
-                    
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    restClientFactoryMock
-                    .Verify(
-                        restClientFactory => restClientFactory.Create
-                        (
-                            baseURL
-                        ),
-                        Times.Once
-                    );
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_VaildInput_StopWatchStartCalled()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = System.Net.HttpStatusCode.OK;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    //  DateTime
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(new System.DateTime(2020, 1, 1));
-
-                    //  Stopwatch
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Start());
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Stop());
-
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(100);
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    stopwatchServiceMock
-                    .Verify(
-                        stopwatchService => stopwatchService.Start(),
-                        Times.Once
-                    );
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_VaildInput_RestClientExecuteAsyncCalled()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = System.Net.HttpStatusCode.OK;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    restClientMock
-                    .Verify
-                    (
-                        restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                        (
-                            restRequest,
-                            It.IsAny<CancellationToken>()
-                        ),
-                        Times.Once
-                    );
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_VaildInput_StopWatchStopCalled()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest();
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = System.Net.HttpStatusCode.OK;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    //  DateTime
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(new System.DateTime(2020, 1, 1));
-
-                    //  Stopwatch
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Start());
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Stop());
-
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(100);
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    stopwatchServiceMock
-                    .Verify(
-                        stopwatchService => stopwatchService.Stop(),
-                        Times.Once
-                    );
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIsSuccessful_LogInformationRedacted()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest
-                    {
-                        Resource = "resoure"
-                    };
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.OK;
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogInformationRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, IDictionary<string, object>>((message, properties) =>
-                        {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  DateTime
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(new System.DateTime(2020, 1, 1));
-
-                    //  Stopwatch
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(100);
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogInformationRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
-                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(baseURL, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(restRequest.Resource, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(restRequest.Body, propertiesObserved[BODY]);
-                    Assert.AreEqual(content, (string)propertiesObserved[CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(statusCode, propertiesObserved[STATUS_CODE]);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIsNotSuccessful_LogErrorRedacted()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest
-                    {
-                        Resource = "resoure"
-                    };
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 1;
-
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.BadRequest;
-                    var errorException = new Exception("Bad Request Fail");
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(false);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-                    restResponseMock.Object.ErrorException = errorException;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    string messageObserved = null;
-                    var exceptionObserved = (Exception)null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogErrorRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<Exception>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
-                        {
-                            messageObserved = message;
-                            exceptionObserved = exception;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            messageObserved,
-                            exceptionObserved,
-                            propertiesObserved
-                        )
-                    );
-
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
-                    Assert.AreEqual(errorException, exceptionObserved);
-                    Assert.AreEqual(2, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(baseURL, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(restRequest.Resource, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(restRequest.Body, propertiesObserved[BODY]);
-                    Assert.AreEqual(content, (string)propertiesObserved[CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(statusCode, propertiesObserved[STATUS_CODE]);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIs2xx_InsertSuccessfulTelemetry()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest
-                    {
-                        Resource = "resoure"
-                    };
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.OK;
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogInformationRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, IDictionary<string, object>>((message, properties) =>
-                        {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  DateTime
-                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(dateTimeExpected);
-
-                    //  Stopwatch
-                    var elapsedMillisecondsExpected = 100;
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(elapsedMillisecondsExpected);
-
-                    //  Telemetry
-                    var telemetryDataObserved = (TelemetryData)null;
-                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
-                    telemetryServiceMock
-                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
-                        .Callback<TelemetryData>((telemetryData) =>
-                        {
-                            telemetryDataObserved = telemetryData;
-                        });
-
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogInformationRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    telemetryServiceMock
-                    .Verify(
-                        telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()),
-                        Times.Once
-                    );
-
-                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
-                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
-                    Assert.AreEqual($"{Enum.GetName(typeof(Method), restRequest.Method)} {baseURL}{restRequest.Resource}", telemetryDataObserved.Name);
-                    Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
-                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIs4xx_InsertBadRequestTelemetry()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest
-                    {
-                        Resource = "resoure"
-                    };
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.BadRequest;
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogInformationRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, IDictionary<string, object>>((message, properties) =>
-                        {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  DateTime
-                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(dateTimeExpected);
-
-                    //  Stopwatch
-                    var elapsedMillisecondsExpected = 100;
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(elapsedMillisecondsExpected);
-
-                    //  Telemetry
-                    var telemetryDataObserved = (TelemetryData)null;
-                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
-                    telemetryServiceMock
-                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
-                        .Callback<TelemetryData>((telemetryData) =>
-                        {
-                            telemetryDataObserved = telemetryData;
-                        });
-
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogInformationRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    telemetryServiceMock
-                    .Verify(
-                        telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()),
-                        Times.Once
-                    );
-
-                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
-                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
-                    Assert.AreEqual($"{Enum.GetName(typeof(Method), restRequest.Method)} {baseURL}{restRequest.Resource}", telemetryDataObserved.Name);
-                    Assert.AreEqual(TelemetryState.BadRequest, telemetryDataObserved.TelemetryState);
-                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIsNot2xxOr4xx_InsertFailedTelemetry()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    IRestRequest restRequest = new RestRequest
-                    {
-                        Resource = "resoure"
-                    };
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.InternalServerError;
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse<DataClass>>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClientFactory => restClientFactory.ExecuteAsync<DataClass>
-                         (
-                             It.IsAny<IRestRequest>(), It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogInformationRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, IDictionary<string, object>>((message, properties) =>
-                        {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  DateTime
-                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(dateTimeExpected);
-
-                    //  Stopwatch
-                    var elapsedMillisecondsExpected = 100;
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(elapsedMillisecondsExpected);
-
-                    //  Telemetry
-                    var telemetryDataObserved = (TelemetryData)null;
-                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
-                    telemetryServiceMock
-                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
-                        .Callback<TelemetryData>((telemetryData) =>
-                        {
-                            telemetryDataObserved = telemetryData;
-                        });
-
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync<DataClass>(restRequest, baseURL, retrys);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogInformationRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    telemetryServiceMock
-                    .Verify(
-                        telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()),
-                        Times.Once
-                    );
-
-                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
-                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
-                    Assert.AreEqual($"{Enum.GetName(typeof(Method), restRequest.Method)} {baseURL}{restRequest.Resource}", telemetryDataObserved.Name);
-                    Assert.AreEqual(TelemetryState.Failed, telemetryDataObserved.TelemetryState);
-                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-
-        [TestMethod]
-        public async Task ExecuteAsync_VaildInput_RestClientFactoryCreateCalled()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    var method = Method.POST;
-
-                    IRestRequest restRequest = new RestRequest
-                    {
-                        Method = method
-                    };
-
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
-
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.OK;
-
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
-
-                    //Assert
-                    restClientFactoryMock
-                    .Verify(
-                        restClientFactory => restClientFactory.Create
-                        (
-                            baseURL
-                        ),
-                        Times.Once
-                    );
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
+        #region ExecuteAsync
 
         [TestMethod]
         public async Task ExecuteAsync_VaildInput_StopWatchStartCalled()
@@ -1212,63 +55,29 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 0;
+                    var timeout = 30.0;
 
-                    IRestRequest restRequest = new RestRequest
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative)
                     };
 
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
+                    var httpResponseMessage = new HttpResponseMessage();
 
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.OK;
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -1282,18 +91,13 @@ namespace DickinsonBros.DurableRest.Tests
                     );
 
                     //  DateTime
-                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
                     var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
                     dateTimeServiceMock
                         .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(dateTimeExpected);
+                        .Returns(new System.DateTime(2020, 1, 1));
 
                     //  Stopwatch
-                    var elapsedMillisecondsExpected = 100;
                     var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(elapsedMillisecondsExpected);
 
                     stopwatchServiceMock
                     .Setup(stopwatchService => stopwatchService.Start());
@@ -1301,22 +105,16 @@ namespace DickinsonBros.DurableRest.Tests
                     stopwatchServiceMock
                     .Setup(stopwatchService => stopwatchService.Stop());
 
-                    //  Telemetry
-                    var telemetryDataObserved = (TelemetryData)null;
-                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
-                    telemetryServiceMock
-                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
-                        .Callback<TelemetryData>((telemetryData) =>
-                        {
-                            telemetryDataObserved = telemetryData;
-                        });
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
 
                     //  Durable Rest Service
                     var uut = serviceProvider.GetRequiredService<IDurableRestService>();
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
                     stopwatchServiceMock
@@ -1339,61 +137,29 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 0;
+                    var timeout = 30.0;
 
-                    IRestRequest restRequest = new RestRequest
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative)
                     };
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
 
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.OK;
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
+                    var httpResponseMessage = new HttpResponseMessage();
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
 
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -1406,25 +172,38 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                     );
 
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
                     //  Durable Rest Service
                     var uut = serviceProvider.GetRequiredService<IDurableRestService>();
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
-                    restClientMock
-                    .Verify
-                    (
-                        restClientFactory => restClientFactory.ExecuteAsync
-                        (
-                            restRequest,
-                            method,
-                            It.IsAny<CancellationToken>()
-                        ),
-                        Times.Once
-                    );
+                    httpMessageHandlerMock.Protected().Verify(
+                       "SendAsync",
+                       Times.Exactly(1),
+                       ItExpr.Is<HttpRequestMessage>(req => req == httpRequestMessage),
+                       ItExpr.IsAny<CancellationToken>());
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
@@ -1440,63 +219,29 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 0;
+                    var timeout = 30.0;
 
-                    IRestRequest restRequest = new RestRequest
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative)
                     };
 
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
+                    var httpResponseMessage = new HttpResponseMessage();
 
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.OK;
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -1510,18 +255,13 @@ namespace DickinsonBros.DurableRest.Tests
                     );
 
                     //  DateTime
-                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
                     var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
                     dateTimeServiceMock
                         .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(dateTimeExpected);
+                        .Returns(new System.DateTime(2020, 1, 1));
 
                     //  Stopwatch
-                    var elapsedMillisecondsExpected = 100;
                     var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(elapsedMillisecondsExpected);
 
                     stopwatchServiceMock
                     .Setup(stopwatchService => stopwatchService.Start());
@@ -1529,22 +269,16 @@ namespace DickinsonBros.DurableRest.Tests
                     stopwatchServiceMock
                     .Setup(stopwatchService => stopwatchService.Stop());
 
-                    //  Telemetry
-                    var telemetryDataObserved = (TelemetryData)null;
-                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
-                    telemetryServiceMock
-                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
-                        .Callback<TelemetryData>((telemetryData) =>
-                        {
-                            telemetryDataObserved = telemetryData;
-                        });
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
 
                     //  Durable Rest Service
                     var uut = serviceProvider.GetRequiredService<IDurableRestService>();
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
                     stopwatchServiceMock
@@ -1557,9 +291,8 @@ namespace DickinsonBros.DurableRest.Tests
             );
         }
 
-
         [TestMethod]
-        public async Task ExecuteAsync_RequestIsSuccessful_LogInformationRedacted()
+        public async Task ExecuteAsync_Timeout_Retry()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -1568,180 +301,32 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 2;
+                    var timeout = 0;
 
-                    IRestRequest restRequest = new RestRequest
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative)
                     };
-                    restRequest.Resource = "resoure";
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
 
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.OK;
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
-
-                    //  Logging
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogInformationRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, IDictionary<string, object>>((message, properties) =>
-                        {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogInformationRedacted
-                        (
-                            It.IsAny<string>(),
-                            It.IsAny<IDictionary<string, object>>()
-                        )
-                    );
-
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
-                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(baseURL, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(restRequest.Resource, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(restRequest.Body, propertiesObserved[BODY]);
-                    Assert.AreEqual(content, (string)propertiesObserved[CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(statusCode, propertiesObserved[STATUS_CODE]);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsync_RequestIsNotSuccessful_LogErrorRedacted()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    var method = Method.POST;
-
-                    IRestRequest restRequest = new RestRequest
+                    var httpResponseMessage = new HttpResponseMessage()
                     {
-                        Method = method
+                        StatusCode = System.Net.HttpStatusCode.BadRequest,
                     };
-                    restRequest.Resource = "resoure";
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 1;
 
-                    //  Rest Response
-                    var content = "Content";
-                    var statusCode = System.Net.HttpStatusCode.BadRequest;
-                    var errorException = new Exception("Bad Request Fail");
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(false);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = content;
-                    restResponseMock.Object.StatusCode = statusCode;
-                    restResponseMock.Object.ErrorException = errorException;
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ThrowsAsync(new OperationCanceledException());
 
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
 
                     //  Logging
                     string messageObserved = null;
@@ -1765,12 +350,325 @@ namespace DickinsonBros.DurableRest.Tests
                             propertiesObserved = (Dictionary<string, object>)properties;
                         });
 
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
                     //  Durable Rest Service
                     var uut = serviceProvider.GetRequiredService<IDurableRestService>();
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    Assert.AreEqual(3, (int)propertiesObserved[ATTEMPTS]);
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_FailedAndRetrys_AttemptsExpected()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 2;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative)
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        StatusCode = System.Net.HttpStatusCode.BadRequest,
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+
+                    //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    Assert.AreEqual(3, (int)propertiesObserved[ATTEMPTS]);
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_RequestIsSuccessful_LogInformationRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        
+                        StatusCode = System.Net.HttpStatusCode.OK,
+                        Content = new StringContent("{\"name\":\"Same Doe\",\"age\":35}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+
+                    string messageObserved = null;
+                    Dictionary<string, object> propertiesObserved = null;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogInformationRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, IDictionary<string, object>>((message, properties) =>
+                        {
+                            messageObserved = message;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            messageObserved,
+                            propertiesObserved
+                        )
+                    );
+
+                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
+                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_RequestIsNotSuccessful_LogErrorRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+
+                        StatusCode = System.Net.HttpStatusCode.InternalServerError,
+                        Content = new StringContent("{\"name\":\"Same Doe\",\"age\":35}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+
+                    //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
                     loggingServiceMock.Verify
@@ -1783,22 +681,21 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                     );
 
-                    Assert.AreEqual(errorException, exceptionObserved);
                     Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
-                    Assert.AreEqual(2, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(baseURL, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(restRequest.Resource, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(restRequest.Body, propertiesObserved[BODY]);
-                    Assert.AreEqual(content, (string)propertiesObserved[CONTENT]);
+                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
+                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
                     Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(statusCode, propertiesObserved[STATUS_CODE]);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
         }
 
         [TestMethod]
-        public async Task ExecuteAsync_RequestIs2xx_InsertSuccessfulTelemetry()
+        public async Task ExecuteAsync_Runs_InsertTelemetry()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -1807,74 +704,57 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 0;
+                    var timeout = 30.0;
 
-                    IRestRequest restRequest = new RestRequest
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
                     };
 
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
 
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.OK;
+                        StatusCode = System.Net.HttpStatusCode.OK,
+                        Content = new StringContent("{\"name\":\"Same Doe\",\"age\":35}", Encoding.UTF8, "application/json")
+                    };
 
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
 
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
 
                     //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
+                    loggingServiceMock
+                        .Setup
                         (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
                         )
-                    );
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
 
                     //  DateTime
                     var dateTimeExpected = new System.DateTime(2020, 1, 1);
@@ -1889,12 +769,6 @@ namespace DickinsonBros.DurableRest.Tests
                     stopwatchServiceMock
                         .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
                         .Returns(elapsedMillisecondsExpected);
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Start());
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Stop());
 
                     //  Telemetry
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1911,12 +785,18 @@ namespace DickinsonBros.DurableRest.Tests
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
+                    telemetryServiceMock
+                    .Verify(
+                        telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()),
+                        Times.Once
+                    );
+
                     Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
                     Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
-                    Assert.AreEqual($"{Enum.GetName(typeof(Method), restRequest.Method)} {baseURL}{restRequest.Resource}", telemetryDataObserved.Name);
+                    Assert.AreEqual($"{httpRequestMessage.Method} {httpRequestMessage.RequestUri}", telemetryDataObserved.Name);
                     Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
                     Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
                 },
@@ -1925,7 +805,7 @@ namespace DickinsonBros.DurableRest.Tests
         }
 
         [TestMethod]
-        public async Task ExecuteAsync_RequestIs4xx_InsertIBadRequestTelemetry()
+        public async Task ExecuteAsync_RunsWithoutTelemtry_DoesNotInsertTelemetry()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -1934,74 +814,57 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 0;
+                    var timeout = 30.0;
 
-                    IRestRequest restRequest = new RestRequest
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
                     };
 
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
 
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.BadRequest;
+                        StatusCode = System.Net.HttpStatusCode.OK,
+                        Content = new StringContent("{\"name\":\"Same Doe\",\"age\":35}", Encoding.UTF8, "application/json")
+                    };
 
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
 
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
-                        )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
 
                     //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
+                    loggingServiceMock
+                        .Setup
                         (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
                         )
-                    );
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
 
                     //  DateTime
                     var dateTimeExpected = new System.DateTime(2020, 1, 1);
@@ -2017,11 +880,608 @@ namespace DickinsonBros.DurableRest.Tests
                         .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
                         .Returns(elapsedMillisecondsExpected);
 
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    //Nothing To Assert
+                },
+                serviceCollection => ConfigureServicesWithoutTelemtryService(serviceCollection)
+            );
+        }
+
+        #endregion
+
+        #region ExecuteAsyncOfT
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_VaildInput_StopWatchStartCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative)
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    //  Logging
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock.Setup
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    );
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
                     stopwatchServiceMock
                     .Setup(stopwatchService => stopwatchService.Start());
 
                     stopwatchServiceMock
                     .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    stopwatchServiceMock
+                    .Verify(
+                        stopwatchService => stopwatchService.Start(),
+                        Times.Once
+                    );
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_VaildInput_RestClientExecuteAsyncCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative)
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    //  Logging
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock.Setup
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    );
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    httpMessageHandlerMock.Protected().Verify(
+                       "SendAsync",
+                       Times.Exactly(1),
+                       ItExpr.Is<HttpRequestMessage>(req => req == httpRequestMessage),
+                       ItExpr.IsAny<CancellationToken>());
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_VaildInput_StopWatchStopCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative)
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    //  Logging
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock.Setup
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    );
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    stopwatchServiceMock
+                    .Verify(
+                        stopwatchService => stopwatchService.Stop(),
+                        Times.Once
+                    );
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_RequestIsSuccessful_LogInformationRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+
+                    string messageObserved = null;
+                    Dictionary<string, object> propertiesObserved = null;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogInformationRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, IDictionary<string, object>>((message, properties) =>
+                        {
+                            messageObserved = message;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            messageObserved,
+                            propertiesObserved
+                        )
+                    );
+
+                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
+                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_RequestIsNotSuccessful_LogErrorRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        StatusCode = System.Net.HttpStatusCode.InternalServerError,
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+    , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+
+                    //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            messageObserved,
+                            exceptionObserved,
+                            propertiesObserved
+                        )
+                    );
+
+                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
+                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_Runs_InsertTelemetry()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+
+                    //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
+
+                    //  DateTime
+                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(dateTimeExpected);
+
+                    //  Stopwatch
+                    var elapsedMillisecondsExpected = 100;
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(elapsedMillisecondsExpected);
 
                     //  Telemetry
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2038,13 +1498,19 @@ namespace DickinsonBros.DurableRest.Tests
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
+                    telemetryServiceMock
+                    .Verify(
+                        telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()),
+                        Times.Once
+                    );
+
                     Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
                     Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
-                    Assert.AreEqual($"{Enum.GetName(typeof(Method), restRequest.Method)} {baseURL}{restRequest.Resource}", telemetryDataObserved.Name);
-                    Assert.AreEqual(TelemetryState.BadRequest, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual($"{httpRequestMessage.Method} {httpRequestMessage.RequestUri}", telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
                     Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
@@ -2052,7 +1518,7 @@ namespace DickinsonBros.DurableRest.Tests
         }
 
         [TestMethod]
-        public async Task ExecuteAsync_RequestIsNot2xxOr4xx_InsertFailedTelemetry()
+        public async Task ExecuteAsyncOfT_Runs_ReturnsDataAsContentDeserialized()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -2061,74 +1527,76 @@ namespace DickinsonBros.DurableRest.Tests
                     //Setup
 
                     //  Prams
-                    var method = Method.POST;
+                    var retrys = 0;
+                    var timeout = 30.0;
 
-                    IRestRequest restRequest = new RestRequest
+                
+
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
                     {
-                        Method = method
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
                     };
 
-                    string baseURL = "https://www.demo.com/";
-                    int retrys = 0;
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
 
-                    //  Rest Response
-                    var restResponseMock = serviceProvider.GetMock<IRestResponse>();
-                    var statusCode = System.Net.HttpStatusCode.InternalServerError;
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
 
-                    restResponseMock
-                        .SetupGet(restResponse => restResponse.IsSuccessful)
-                        .Returns(true);
-                    restResponseMock.Object.ErrorException = null;
-                    restResponseMock.Object.Request = new RestRequest();
-                    restResponseMock.Object.Content = "";
-                    restResponseMock.Object.StatusCode = statusCode;
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
+                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
 
-                    //  Rest Client
-                    var restClientMock = serviceProvider.GetMock<IRestClient>();
-                    restClientMock
-                        .SetupGet(restClient => restClient.BaseUrl)
-                        .Returns(new Uri(baseURL));
-                    restClientMock
-                             .Setup
-                     (
-                         restClient => restClient.ExecuteAsync
-                         (
-                             It.IsAny<IRestRequest>(),
-                             It.IsAny<Method>(),
-                             It.IsAny<CancellationToken>()
-                         )
-                     )
-                     .ReturnsAsync
-                     (
-                        restResponseMock.Object
-                     );
-
-                    //  Rest Client Factory
-                    var restClientFactoryMock = serviceProvider.GetMock<IRestClientFactory>();
-                    restClientFactoryMock
-                        .Setup
-                        (
-                            restClientFactory => restClientFactory.Create
-                            (
-                                It.IsAny<string>()
-                            )
+                    var expectedResponse = new HttpResponse<DataClass>
+                    {
+                        HttpResponseMessage = httpResponseMessage,
+                        Data = JsonSerializer.Deserialize<DataClass>(
+                            await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false),
+                            new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true,
+                            }
                         )
-                        .Returns
-                        (
-                            restClientMock.Object
-                        );
+                    };
 
                     //  Logging
+                    string messageObserved = null;
+                    var exceptionObserved = (Exception)null;
+                    Dictionary<string, object> propertiesObserved = null;
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock.Setup
-                    (
-                        loggingService => loggingService.LogErrorRedacted
+                    loggingServiceMock
+                        .Setup
                         (
-                            It.IsAny<string>(),
-                            It.IsAny<Exception>(),
-                            It.IsAny<IDictionary<string, object>>()
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
                         )
-                    );
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messageObserved = message;
+                            exceptionObserved = exception;
+                            propertiesObserved = (Dictionary<string, object>)properties;
+                        });
 
                     //  DateTime
                     var dateTimeExpected = new System.DateTime(2020, 1, 1);
@@ -2143,12 +1611,6 @@ namespace DickinsonBros.DurableRest.Tests
                     stopwatchServiceMock
                         .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
                         .Returns(elapsedMillisecondsExpected);
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Start());
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Stop());
 
                     //  Telemetry
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2165,18 +1627,25 @@ namespace DickinsonBros.DurableRest.Tests
                     var uutConcrete = (DurableRestService)uut;
 
                     //Act
-                    var observed = await uutConcrete.ExecuteAsync(restRequest, baseURL, retrys);
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
-                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
-                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
-                    Assert.AreEqual($"{Enum.GetName(typeof(Method), restRequest.Method)} {baseURL}{restRequest.Resource}", telemetryDataObserved.Name);
-                    Assert.AreEqual(TelemetryState.Failed, telemetryDataObserved.TelemetryState);
-                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+                    telemetryServiceMock
+                    .Verify(
+                        telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()),
+                        Times.Once
+                    );
+
+                    Assert.AreEqual(observed.HttpResponseMessage, observed.HttpResponseMessage);
+                    Assert.AreEqual(observed.Data, observed.Data);
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
         }
+
+        #endregion
+
+        #region InsertDurableRestResult
 
         [TestMethod]
         public async Task InsertDurableRestResult_StatusCodeIs2xx_InsertSuccessfulTelemetry()
@@ -2322,20 +1791,103 @@ namespace DickinsonBros.DurableRest.Tests
             );
         }
 
+        #endregion
 
+        #region CloneAsnyc
+
+        [TestMethod]
+        public async Task CloneAsync_HttpRequestMessage_ReturnsCloned()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    var httpRequestMessage = new HttpRequestMessage()
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json"),
+
+                    };
+
+                    httpRequestMessage.Headers.Add("1-Headers", "1Headers");
+                    httpRequestMessage.Headers.Add("2-Headers", "2Headers");
+                    httpRequestMessage.Properties.Add("1-Properties", "1Properties");
+                    httpRequestMessage.Properties.Add("2-Properties", "2Properties");
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.CloneAsync(httpRequestMessage).ConfigureAwait(false);
+                    //Assert
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync().ConfigureAwait(false), await observed.Content.ReadAsStringAsync().ConfigureAwait(false));
+                    Assert.AreEqual(httpRequestMessage.Version, observed.Version);
+                    Assert.AreEqual(httpRequestMessage.Properties.Count, observed.Properties.Count);
+                    Assert.AreEqual(httpRequestMessage.Properties["1-Properties"], observed.Properties["1-Properties"]);
+                    Assert.AreEqual(httpRequestMessage.Properties["2-Properties"], observed.Properties["2-Properties"]);
+                    Assert.AreEqual(httpRequestMessage.Headers.Count(), observed.Headers.Count());
+                    Assert.AreEqual(httpRequestMessage.Headers.First(e => e.Key == "1-Headers").Value.First(), observed.Headers.First(e => e.Key == "1-Headers").Value.First());
+                    Assert.AreEqual(httpRequestMessage.Headers.First(e => e.Key == "2-Headers").Value.First(), observed.Headers.First(e => e.Key == "2-Headers").Value.First());
+
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task CloneAsync_HttpContent_ReturnsCloned()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    var content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}");
+                    content.Headers.Add("1-Headers", "1Headers");
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.CloneAsync(content).ConfigureAwait(false);
+
+                    //Assert
+                    Assert.AreEqual(await content.ReadAsStringAsync().ConfigureAwait(false), await observed.ReadAsStringAsync().ConfigureAwait(false));
+                    Assert.AreEqual(content.Headers.First(e=> e.Key == "1-Headers").Value.First(), observed.Headers.First(e => e.Key == "1-Headers").Value.First());
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
         #endregion
 
         private IServiceCollection ConfigureServices(IServiceCollection serviceCollection)
         {
-            serviceCollection.AddSingleton(Mock.Of<IRestResponse<DataClass>>());
-            serviceCollection.AddSingleton(Mock.Of<IRestResponse>());
-            serviceCollection.AddSingleton(Mock.Of<IRestClient>());
             serviceCollection.AddSingleton(Mock.Of<IDateTimeService>());
             serviceCollection.AddSingleton(Mock.Of<IStopwatchService>());
             serviceCollection.AddSingleton(Mock.Of<ITelemetryService>());
             serviceCollection.AddSingleton(Mock.Of<ILoggingService<DurableRestService>>());
-            serviceCollection.AddSingleton(Mock.Of<IRestClientFactory>());
-            serviceCollection.AddSingleton(Mock.Of<IRestRequestFactory>());
+            serviceCollection.AddSingleton<IDurableRestService, DurableRestService>();
+
+            return serviceCollection;
+        }
+
+        private IServiceCollection ConfigureServicesWithoutTelemtryService(IServiceCollection serviceCollection)
+        {
+            serviceCollection.AddSingleton(Mock.Of<IDateTimeService>());
+            serviceCollection.AddSingleton(Mock.Of<IStopwatchService>());
+            serviceCollection.AddSingleton(Mock.Of<ILoggingService<DurableRestService>>());
             serviceCollection.AddSingleton<IDurableRestService, DurableRestService>();
 
             return serviceCollection;
