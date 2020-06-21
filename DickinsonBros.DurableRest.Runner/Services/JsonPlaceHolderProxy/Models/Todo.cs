@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace DickinsonBros.DurableRest.Runner.Models
+﻿namespace DickinsonBros.DurableRest.Runner.Models.Models
 {
     public class Todo
     {

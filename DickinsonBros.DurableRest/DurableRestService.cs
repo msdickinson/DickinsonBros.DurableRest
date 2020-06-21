@@ -1,26 +1,28 @@
-﻿using RestSharp;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using DickinsonBros.Logger.Abstractions;
-using DickinsonBros.DurableRest.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using DickinsonBros.Stopwatch.Abstractions;
 using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.Telemetry.Abstractions;
 using DickinsonBros.Telemetry.Abstractions.Models;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.IO;
+using DickinsonBros.DurableRest.Abstractions;
+using DickinsonBros.DurableRest.Abstractions.Models;
+using System.Net;
 
 namespace DickinsonBros.DurableRest
 {
-
-
     public class DurableRestService : IDurableRestService
     {
         internal readonly IServiceProvider _serviceProvider;
         internal readonly IDateTimeService _dateTimeService;
         internal readonly ITelemetryService _telemetryService;
         internal readonly ILoggingService<DurableRestService> _loggingService;
-        internal readonly IRestClientFactory _restClientFactory;
         internal const string DurableRestMessage = "DurableRest";
 
         public DurableRestService
@@ -28,166 +30,146 @@ namespace DickinsonBros.DurableRest
             IServiceProvider serviceProvider,
             IDateTimeService dateTimeService,
             ITelemetryService telemetryService,
-            ILoggingService<DurableRestService> loggingService,
-            IRestClientFactory restClientFactory
+            ILoggingService<DurableRestService> loggingService
         )
         {
             _loggingService = loggingService;
             _dateTimeService = dateTimeService;
             _telemetryService = telemetryService;
-            _restClientFactory = restClientFactory;
             _serviceProvider = serviceProvider;
         }
- 
-        public async Task<IRestResponse<T>> ExecuteAsync<T>
+
+        public DurableRestService
         (
-            IRestRequest restRequest,
-            string baseURL,
-            int retrys
+            IServiceProvider serviceProvider,
+            IDateTimeService dateTimeService,
+            ILoggingService<DurableRestService> loggingService
         )
         {
-            var client =  _restClientFactory.Create(baseURL);
+            _loggingService = loggingService;
+            _dateTimeService = dateTimeService;
+            _serviceProvider = serviceProvider;
+        }
+
+        public async Task<HttpResponse<T>> ExecuteAsync<T>
+        (
+            HttpClient httpClient,
+            HttpRequestMessage httpRequestMessage,
+            int retrys,
+            double timeoutInSeconds
+        )
+        {
+            var httpResponseMessage = await ExecuteAsync(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
+
+            return new HttpResponse<T>
+            {
+                HttpResponseMessage = httpResponseMessage,
+                Data = JsonSerializer.Deserialize<T>(
+                    httpResponseMessage.Content != null ? await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                    }
+                )
+            };
+        }
+
+        public async Task<HttpResponseMessage> ExecuteAsync
+        (
+            HttpClient httpClient,
+            HttpRequestMessage httpRequestMessage,
+            int retrys,
+            double timeoutInSeconds
+        )
+        {
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
             var attempts = 0;
 
-            IRestResponse<T> response;
+            HttpResponseMessage httpResponseMessage = null;
             do
             {
+                var cts = new CancellationTokenSource();
+                cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
                 stopwatchService.Start();
-                response = await client.ExecuteAsync<T>(restRequest);
-                stopwatchService.Stop();
+
+                try
+                {
+                    httpResponseMessage = await httpClient.SendAsync(httpRequestMessage, cts.Token).ConfigureAwait(false);
+                    stopwatchService.Stop();
+                }
+                catch(OperationCanceledException ex)
+                {
+                    httpResponseMessage = new HttpResponseMessage
+                    {
+                        StatusCode = HttpStatusCode.GatewayTimeout
+                    };
+                    stopwatchService.Stop();
+                }
+
+                if (_telemetryService != null)
+                {
+                    InsertDurableRestResult
+                    (
+                        $"{httpRequestMessage.Method} {httpRequestMessage.RequestUri}",
+                        (int)httpResponseMessage.StatusCode,
+                        (int)stopwatchService.ElapsedMilliseconds
+                    );
+                }
+
                 attempts++;
 
-                if (response.IsSuccessful)
+                if (httpResponseMessage.IsSuccessStatusCode)
                 {
                     break;
                 }
+                httpRequestMessage = await CloneAsync(httpRequestMessage).ConfigureAwait(false);
             } while (retrys >= attempts);
 
-            LogDurableRestResult(restRequest, response, attempts, client, (int)stopwatchService.ElapsedMilliseconds);
-            InsertDurableRestResult
-            (
-                $"{Enum.GetName(typeof(Method), restRequest.Method)} {client.BaseUrl}{restRequest.Resource}",
-                (int)response.StatusCode,
-                (int)stopwatchService.ElapsedMilliseconds
-            );
+            await LogDurableRestResult(httpRequestMessage, httpResponseMessage, httpClient, attempts, (int)stopwatchService.ElapsedMilliseconds).ConfigureAwait(false);
 
-            return response;
+            return httpResponseMessage;
         }
 
-        public async Task<IRestResponse> ExecuteAsync
+
+        public async Task LogDurableRestResult
         (
-            IRestRequest restRequest,
-            string baseURL,
-            int retrys
+            HttpRequestMessage httpRequestMessage,
+            HttpResponseMessage httpResponseMessage,
+            HttpClient httpClient,
+            int attempts,
+            int elapsedMilliseconds
         )
         {
-            var client = _restClientFactory.Create(baseURL);
-            var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
-            var attempts = 0;
-
-            IRestResponse response;
-            do
+            var properties = new Dictionary<string, object>
             {
-                stopwatchService.Start();
-                response = await client.ExecuteAsync(restRequest, restRequest.Method);
-                stopwatchService.Stop();
-                attempts++;
+                { "Attempts", attempts },
+                { "BaseUrl", httpClient.BaseAddress },
+                { "Resource", httpRequestMessage.RequestUri.AbsolutePath },
+                { "RequestContent", httpRequestMessage.Content != null ? await httpRequestMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
+                { "ResponseContent", httpResponseMessage?.Content != null ? await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
+                { "ElapsedMilliseconds", elapsedMilliseconds },
+                { "StatusCode", httpResponseMessage?.StatusCode }
+            };
 
-                if (response.IsSuccessful)
-                {
-                    break;
-                }
-
-            } while (retrys >= attempts);
-
-            LogDurableRestResult(restRequest, response, attempts, client, (int)stopwatchService.ElapsedMilliseconds);
-            InsertDurableRestResult
-            (
-                $"{Enum.GetName(typeof(Method), restRequest.Method)} {client.BaseUrl}{restRequest.Resource}",
-                (int)response.StatusCode,
-                (int)stopwatchService.ElapsedMilliseconds
-            );
-
-            return response;
-        }
-
-        public void LogDurableRestResult<T>(IRestRequest restRequest, IRestResponse<T> response, int attempts, IRestClient client, int elapsedMilliseconds)
-        {
-            if (!response.IsSuccessful)
+            if (!httpResponseMessage.IsSuccessStatusCode)
             {
                 _loggingService.LogErrorRedacted
                 (
                     DurableRestMessage,
-                    response.ErrorException,
-                    new Dictionary<string, object>
-                    {
-                        { "Attempts", attempts },
-                        { "BaseUrl", client.BaseUrl },
-                        { "Resource", restRequest.Resource },
-                        { "Body",  restRequest.Body },
-                        { "Content", response.Content },
-                        { "ElapsedMilliseconds", elapsedMilliseconds },
-                        { "StatusCode", response.StatusCode }
-                    }
+                    null,
+                    properties
                 );
                 return;
             }
 
             _loggingService.LogInformationRedacted
-              (
-                  DurableRestMessage,
-                  new Dictionary<string, object>
-                  {
-                        { "Attempts", attempts },
-                        { "BaseUrl", client.BaseUrl },
-                        { "Resource", restRequest.Resource },
-                        { "Body",  restRequest.Body },
-                        { "Content", response.Content },
-                        { "ElapsedMilliseconds", elapsedMilliseconds },
-                        { "StatusCode", response.StatusCode }
-                  }
-              );
+            (
+                DurableRestMessage,
+                properties
+            );
 
         }
-        public void LogDurableRestResult(IRestRequest restRequest, IRestResponse response, int attempts, IRestClient client, int elapsedMilliseconds)
-        {
-            if (!response.IsSuccessful)
-            {
-                _loggingService.LogErrorRedacted
-                (
-                    DurableRestMessage,
-                    response.ErrorException,
-                    new Dictionary<string, object>
-                    {
-                        { "Attempts", attempts },
-                        { "BaseUrl", client.BaseUrl },
-                        { "Resource", restRequest.Resource },
-                        { "Body",  restRequest.Body },
-                        { "Content", response.Content },
-                        { "ElapsedMilliseconds", elapsedMilliseconds },
-                        { "StatusCode", response.StatusCode }
-                    }
-                );
-                return;
-            }
 
-            _loggingService.LogInformationRedacted
-              (
-                  DurableRestMessage,
-                  new Dictionary<string, object>
-                  {
-                        { "Attempts", attempts },
-                        { "BaseUrl", client.BaseUrl },
-                        { "Resource", restRequest.Resource },
-                        { "Body",  restRequest.Body },
-                        { "Content", response.Content },
-                        { "ElapsedMilliseconds", elapsedMilliseconds },
-                        { "StatusCode", response.StatusCode }
-                  }
-              );
-
-        }
         public void InsertDurableRestResult(string name, int statusCode, int elapsedMilliseconds)
         {
             var telemetryState = statusCode switch
@@ -207,7 +189,40 @@ namespace DickinsonBros.DurableRest
             });
         }
 
+        internal async Task<HttpRequestMessage> CloneAsync(HttpRequestMessage request)
+        {
+            var clone = new HttpRequestMessage(request.Method, request.RequestUri)
+            {
+                Content = await CloneAsync(request.Content).ConfigureAwait(false),
+                Version = request.Version
+            };
+            foreach (KeyValuePair<string, object> prop in request.Properties)
+            {
+                clone.Properties.Add(prop);
+            }
+            foreach (KeyValuePair<string, IEnumerable<string>> header in request.Headers)
+            {
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
 
+            return clone;
+        }
+
+        internal async Task<HttpContent> CloneAsync(HttpContent content)
+        {
+            if (content == null) return null;
+
+            var ms = new MemoryStream();
+            await content.CopyToAsync(ms).ConfigureAwait(false);
+            ms.Position = 0;
+
+            var clone = new StreamContent(ms);
+            foreach (KeyValuePair<string, IEnumerable<string>> header in content.Headers)
+            {
+                clone.Headers.Add(header.Key, header.Value);
+            }
+            return clone;
+        }
     }
 
 }

@@ -2,7 +2,10 @@
 using DickinsonBros.DurableRest.Abstractions;
 using DickinsonBros.DurableRest.Extensions;
 using DickinsonBros.DurableRest.Runner.Models;
+using DickinsonBros.DurableRest.Runner.Models.Models;
 using DickinsonBros.DurableRest.Runner.Services;
+using DickinsonBros.DurableRest.Runner.Services.JsonPlaceHolderProxy;
+using DickinsonBros.DurableRest.Runner.Services.JsonPlaceHolderProxy.Models;
 using DickinsonBros.Encryption.Certificate.Extensions;
 using DickinsonBros.Encryption.Certificate.Models;
 using DickinsonBros.Logger.Extensions;
@@ -17,9 +20,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using RestSharp;
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DickinsonBros.DurableRest.Runner
@@ -41,32 +44,51 @@ namespace DickinsonBros.DurableRest.Runner
                 using var provider = services.BuildServiceProvider();
                 var telemetryService = provider.GetRequiredService<ITelemetryService>();
                 var durableRestService = provider.GetRequiredService<IDurableRestService>();
+                var jsonPlaceHolderProxyService = provider.GetRequiredService<IJsonPlaceHolderProxyService>();
 
                 {
-                    var restRequest = new RestRequest
+                    using var httpClient = new HttpClient
                     {
-                        Method = Method.GET,
-                        Resource = "todos/1"
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
                     };
-                    var baseURL = "https://jsonplaceholder.typicode.com/";
-                    var retrys = 3;
 
-                    var restResponse = await durableRestService.ExecuteAsync(restRequest, baseURL, retrys).ConfigureAwait(false);
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Get,
+                        RequestUri = new Uri("todos/1", UriKind.Relative)
+                    };
+
+                    var retrys = 3;
+                    var timeoutInSeconds = 30;
+                    var restResponse = await durableRestService.ExecuteAsync(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
+                }
+
+                {
+                    using var httpClient = new HttpClient
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Get,
+                        RequestUri = new Uri("todos/1", UriKind.Relative)
+                    };
+
+                    var retrys = 3;
+                    var timeoutInSeconds = 30;
+
+                    var restResponse = await durableRestService.ExecuteAsync<Todo>(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
+
+                    Console.WriteLine("Content: " + await restResponse.HttpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false));
                 }
 
 
+                var result = await jsonPlaceHolderProxyService.GetTodosAsync(new GetTodosRequest
                 {
-                    var restRequest = new RestRequest
-                    {
-                        Method = Method.GET,
-                        Resource = "todos/1"
-                    };
-                    var baseURL = "https://jsonplaceholder.typicode.com/";
-                    var retrys = 3;
-
-                    var restResponse = await durableRestService.ExecuteAsync<Todo>(restRequest, baseURL, retrys).ConfigureAwait(false);
-                    Console.WriteLine("Content: " + restResponse.Content);
-                }
+                    
+                    Items = 2
+                }).ConfigureAwait(false);
 
                 Console.WriteLine("Flush Telemetry");
                 await telemetryService.FlushAsync().ConfigureAwait(false);
@@ -115,6 +137,12 @@ namespace DickinsonBros.DurableRest.Runner
             //Add DurableRest Service
             services.AddDurableRestService();
 
+            //Add Proxy (JsonPlaceHolderProxy)
+            services.AddHttpClient<IJsonPlaceHolderProxyService, JsonPlaceHolderProxyService>(client =>
+            {
+                client.BaseAddress = new Uri(_configuration[$"{nameof(JsonPlaceHolderProxyOptions)}:{nameof(JsonPlaceHolderProxyOptions.BaseURL)}"]);
+            });
+            services.Configure<JsonPlaceHolderProxyOptions>(_configuration.GetSection(nameof(JsonPlaceHolderProxyOptions)));
         }
 
         IServiceCollection InitializeDependencyInjection()
