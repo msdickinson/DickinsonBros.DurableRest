@@ -18,27 +18,41 @@ Features
 <h2>Example Usage</h2>
 
 ```C#
-
 {
-    var restRequest = new RestRequest();
-    restRequest.Method = Method.GET;
-    restRequest.Resource = "todos/1";
-    var baseURL = "https://jsonplaceholder.typicode.com/";
-    var retrys = 3;
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+    };
 
-    var restResponse = await durableRestService.ExecuteAsync(restRequest, baseURL, retrys).ConfigureAwait(false);
+    var httpRequestMessage = new HttpRequestMessage
+    {
+        Method = HttpMethod.Get,
+        RequestUri = new Uri("todos/1", UriKind.Relative)
+    };
+
+    var retrys = 3;
+    var timeoutInSeconds = 30;
+    var restResponse = await durableRestService.ExecuteAsync(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
 }
 
-
 {
-    var restRequest = new RestRequest();
-    restRequest.Method = Method.GET;
-    restRequest.Resource = "todos/1";
-    var baseURL = "https://jsonplaceholder.typicode.com/";
-    var retrys = 3;
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+    };
 
-    var restResponse = await durableRestService.ExecuteAsync<Todo>(restRequest, baseURL, retrys).ConfigureAwait(false);
-    Console.WriteLine("Content: " + restResponse.Content);
+    var httpRequestMessage = new HttpRequestMessage
+    {
+        Method = HttpMethod.Get,
+        RequestUri = new Uri("todos/1", UriKind.Relative)
+    };
+
+    var retrys = 3;
+    var timeoutInSeconds = 30;
+
+    var restResponse = await durableRestService.ExecuteAsync<Todo>(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
+
+    Console.WriteLine("Content: " + await restResponse.HttpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false));
 }
 
 Console.WriteLine("Flush Telemetry");
@@ -164,5 +178,7 @@ using (var provider = services.BuildServiceProvider())
   var sqlService = provider.GetRequiredService<IDurableRestService>();
   var telemetryService = provider.GetRequiredService<ITelemetryService>();
 }
+
+//Example above adds a proxy see example project
 ```
 
