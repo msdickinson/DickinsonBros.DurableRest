@@ -64,13 +64,14 @@ namespace DickinsonBros.DurableRest
             return new HttpResponse<T>
             {
                 HttpResponseMessage = httpResponseMessage,
-                Data = JsonSerializer.Deserialize<T>(
-                    httpResponseMessage.Content != null ? await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null,
-                    new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                    }
-                )
+                Data = (httpResponseMessage.IsSuccessStatusCode && httpResponseMessage.Content != null) ?  
+                            JsonSerializer.Deserialize<T>(
+                                await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false),
+                                new JsonSerializerOptions
+                                {
+                                    PropertyNameCaseInsensitive = true,
+                                })
+                            : default
             };
         }
 
@@ -97,7 +98,7 @@ namespace DickinsonBros.DurableRest
                     httpResponseMessage = await httpClient.SendAsync(httpRequestMessage, cts.Token).ConfigureAwait(false);
                     stopwatchService.Stop();
                 }
-                catch(OperationCanceledException ex)
+                catch (OperationCanceledException)
                 {
                     httpResponseMessage = new HttpResponseMessage
                     {
