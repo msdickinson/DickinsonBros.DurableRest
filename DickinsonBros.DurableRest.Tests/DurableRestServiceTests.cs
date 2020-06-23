@@ -1,6 +1,7 @@
 ﻿using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.DurableRest.Abstractions;
 using DickinsonBros.DurableRest.Abstractions.Models;
+using DickinsonBros.Guid.Abstractions;
 using DickinsonBros.Logger.Abstractions;
 using DickinsonBros.Stopwatch.Abstractions;
 using DickinsonBros.Telemetry.Abstractions;
@@ -46,6 +47,295 @@ namespace DickinsonBros.DurableRest.Tests
         #region ExecuteAsync
 
         [TestMethod]
+        public async Task ExecuteAsync_ExistingCorrelationIdHeader_NewGuidNotCalledAndCorrelationServiceNotCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+                    var expectedGuid = new System.Guid("2cce9f60-a582-480d-a0ea-4ea39dab6961");
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                    };
+
+                    httpRequestMessage.Headers.Add(DurableRestService.CORRELATION_ID, "DemoId");
+
+                    var httpResponseMessage = new HttpResponseMessage();
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+                    //  Logging
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock.Setup
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    );
+
+                    //  Correlation
+                    var correlationServiceMock = serviceProvider.GetMock<ICorrelationService>();
+                    correlationServiceMock
+                        .SetupGet(correlationService => correlationService.CorrelationId);
+
+                    //  Guid
+                    var guidServiceMock = serviceProvider.GetMock<IGuidService>();
+                    guidServiceMock
+                        .Setup(guidService => guidService.NewGuid());
+
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    guidServiceMock
+                    .Verify(
+                        guidService => guidService.NewGuid(),
+                        Times.Never
+                    );
+
+                    correlationServiceMock
+                    .VerifyGet(
+                        correlationService => correlationService.CorrelationId,
+                        Times.Never
+                    );
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+
+        [TestMethod]
+        public async Task ExecuteAsync_NoCorrelationIdHeaderAndNoCorrelationServiceCorrelationId_NewGuidCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+                    var expectedGuid = new System.Guid("2cce9f60-a582-480d-a0ea-4ea39dab6961");
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative)
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage();
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+                    //  Logging
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock.Setup
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    );
+
+                    //  DateTime
+                    var guidServiceMock = serviceProvider.GetMock<IGuidService>();
+                    guidServiceMock
+                        .Setup(guidService => guidService.NewGuid())
+                        .Returns(expectedGuid);
+
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    guidServiceMock
+                    .Verify(
+                        guidService => guidService.NewGuid(),
+                        Times.Once
+                    );
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_NoCorrelationIdHeaderAndHasCorrelationServiceCorrelationId_CorrelationServiceCorrelationIdCalledTwice()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+                    var expectedCorrelationId = "2cce9f60-a582-480d-a0ea-4ea39dab6961";
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative)
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage();
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+                    //  Logging
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock.Setup
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    );
+
+                    //  Correlation
+                    var correlationServiceMock = serviceProvider.GetMock<ICorrelationService>();
+                    correlationServiceMock
+                        .SetupGet(correlationService => correlationService.CorrelationId)
+                        .Returns(expectedCorrelationId);
+
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    correlationServiceMock
+                    .VerifyGet(
+                        correlationService => correlationService.CorrelationId,
+                        Times.Exactly(2)
+                    );
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
         public async Task ExecuteAsync_VaildInput_StopWatchStartCalled()
         {
             await RunDependencyInjectedTestAsync
@@ -76,8 +366,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -158,8 +450,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -240,8 +534,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -325,8 +621,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ThrowsAsync(new OperationCanceledException());
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -417,8 +715,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -512,8 +812,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     string messageObserved = null;
                     Dictionary<string, object> propertiesObserved = null;
@@ -569,7 +871,7 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                     );
 
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
                     Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
                     Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
                     Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
@@ -619,8 +921,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -681,7 +985,7 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                     );
 
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
                     Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
                     Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
                     Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
@@ -731,8 +1035,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -841,8 +1147,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -937,8 +1245,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -1029,8 +1339,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -1121,8 +1433,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
                     //  Logging
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock.Setup
@@ -1214,8 +1528,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     string messageObserved = null;
                     Dictionary<string, object> propertiesObserved = null;
@@ -1271,7 +1587,7 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                     );
 
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
                     Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
                     Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
                     Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
@@ -1327,8 +1643,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -1389,7 +1707,7 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                     );
 
-                    Assert.AreEqual(DurableRestService.DurableRestMessage, messageObserved);
+                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
                     Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
                     Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
                     Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
@@ -1444,8 +1762,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     //  Logging
                     string messageObserved = null;
@@ -1561,8 +1881,10 @@ namespace DickinsonBros.DurableRest.Tests
                       ItExpr.IsAny<CancellationToken>())
                    .ReturnsAsync(httpResponseMessage);
 
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object);
-                    httpClientMock.BaseAddress = new Uri("https://jsonplaceholder.typicode.com/");
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
 
                     var expectedResponse = new HttpResponse<DataClass>
                     {
@@ -1874,6 +2196,8 @@ namespace DickinsonBros.DurableRest.Tests
 
         private IServiceCollection ConfigureServices(IServiceCollection serviceCollection)
         {
+            serviceCollection.AddSingleton(Mock.Of<ICorrelationService>());
+            serviceCollection.AddSingleton(Mock.Of<IGuidService>());
             serviceCollection.AddSingleton(Mock.Of<IDateTimeService>());
             serviceCollection.AddSingleton(Mock.Of<IStopwatchService>());
             serviceCollection.AddSingleton(Mock.Of<ITelemetryService>());
@@ -1885,6 +2209,8 @@ namespace DickinsonBros.DurableRest.Tests
 
         private IServiceCollection ConfigureServicesWithoutTelemtryService(IServiceCollection serviceCollection)
         {
+            serviceCollection.AddSingleton(Mock.Of<ICorrelationService>());
+            serviceCollection.AddSingleton(Mock.Of<IGuidService>());
             serviceCollection.AddSingleton(Mock.Of<IDateTimeService>());
             serviceCollection.AddSingleton(Mock.Of<IStopwatchService>());
             serviceCollection.AddSingleton(Mock.Of<ILoggingService<DurableRestService>>());

@@ -14,6 +14,8 @@ using System.IO;
 using DickinsonBros.DurableRest.Abstractions;
 using DickinsonBros.DurableRest.Abstractions.Models;
 using System.Net;
+using System.Linq;
+using DickinsonBros.Guid.Abstractions;
 
 namespace DickinsonBros.DurableRest
 {
@@ -22,32 +24,43 @@ namespace DickinsonBros.DurableRest
         internal readonly IServiceProvider _serviceProvider;
         internal readonly IDateTimeService _dateTimeService;
         internal readonly ITelemetryService _telemetryService;
+        internal readonly ICorrelationService _correlationService;
+        internal readonly IGuidService _guidService;
         internal readonly ILoggingService<DurableRestService> _loggingService;
-        internal const string DurableRestMessage = "DurableRest";
+        internal const string CORRELATION_ID = "X-Correlation-ID";
+        internal const string DURABLE_REST_MESSAGE = "DurableRest";
 
         public DurableRestService
         (
             IServiceProvider serviceProvider,
+            IGuidService guidService,
             IDateTimeService dateTimeService,
             ITelemetryService telemetryService,
+            ICorrelationService correlationService,
             ILoggingService<DurableRestService> loggingService
         )
         {
+            _correlationService = correlationService;
             _loggingService = loggingService;
             _dateTimeService = dateTimeService;
             _telemetryService = telemetryService;
+            _guidService = guidService;
             _serviceProvider = serviceProvider;
         }
 
         public DurableRestService
         (
             IServiceProvider serviceProvider,
+            IGuidService guidService,
             IDateTimeService dateTimeService,
+            ICorrelationService correlationService,
             ILoggingService<DurableRestService> loggingService
         )
         {
+            _correlationService = correlationService;
             _loggingService = loggingService;
             _dateTimeService = dateTimeService;
+            _guidService = guidService;
             _serviceProvider = serviceProvider;
         }
 
@@ -87,6 +100,16 @@ namespace DickinsonBros.DurableRest
             var attempts = 0;
 
             HttpResponseMessage httpResponseMessage = null;
+
+            if (!httpRequestMessage.Headers.Any(e => e.Key == CORRELATION_ID))
+            {
+                httpRequestMessage.Headers.Add
+                (
+                    CORRELATION_ID,
+                    !string.IsNullOrWhiteSpace(_correlationService.CorrelationId) ? _correlationService.CorrelationId : _guidService.NewGuid().ToString() 
+                );
+            }
+
             do
             {
                 var cts = new CancellationTokenSource();
@@ -156,7 +179,7 @@ namespace DickinsonBros.DurableRest
             {
                 _loggingService.LogErrorRedacted
                 (
-                    DurableRestMessage,
+                    DURABLE_REST_MESSAGE,
                     null,
                     properties
                 );
@@ -165,7 +188,7 @@ namespace DickinsonBros.DurableRest
 
             _loggingService.LogInformationRedacted
             (
-                DurableRestMessage,
+                DURABLE_REST_MESSAGE,
                 properties
             );
 

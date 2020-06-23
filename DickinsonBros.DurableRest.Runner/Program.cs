@@ -8,6 +8,9 @@ using DickinsonBros.DurableRest.Runner.Services.JsonPlaceHolderProxy;
 using DickinsonBros.DurableRest.Runner.Services.JsonPlaceHolderProxy.Models;
 using DickinsonBros.Encryption.Certificate.Extensions;
 using DickinsonBros.Encryption.Certificate.Models;
+using DickinsonBros.Guid.Abstractions;
+using DickinsonBros.Guid.Extensions;
+using DickinsonBros.Logger.Abstractions;
 using DickinsonBros.Logger.Extensions;
 using DickinsonBros.Redactor.Extensions;
 using DickinsonBros.Redactor.Models;
@@ -44,51 +47,16 @@ namespace DickinsonBros.DurableRest.Runner
                 using var provider = services.BuildServiceProvider();
                 var telemetryService = provider.GetRequiredService<ITelemetryService>();
                 var durableRestService = provider.GetRequiredService<IDurableRestService>();
+                var guidService = provider.GetRequiredService<IGuidService>();
                 var jsonPlaceHolderProxyService = provider.GetRequiredService<IJsonPlaceHolderProxyService>();
+                var correlationService = provider.GetRequiredService<ICorrelationService>();
 
-                {
-                    using var httpClient = new HttpClient
-                    {
-                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
-                    };
-
-                    var httpRequestMessage = new HttpRequestMessage
-                    {
-                        Method = HttpMethod.Get,
-                        RequestUri = new Uri("todos/1", UriKind.Relative)
-                    };
-
-                    var retrys = 3;
-                    var timeoutInSeconds = 30;
-                    var restResponse = await durableRestService.ExecuteAsync(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
-                }
-
-                {
-                    using var httpClient = new HttpClient
-                    {
-                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
-                    };
-
-                    var httpRequestMessage = new HttpRequestMessage
-                    {
-                        Method = HttpMethod.Get,
-                        RequestUri = new Uri("todos/1", UriKind.Relative)
-                    };
-
-                    var retrys = 3;
-                    var timeoutInSeconds = 30;
-
-                    var restResponse = await durableRestService.ExecuteAsync<Todo>(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
-
-                    Console.WriteLine("Content: " + await restResponse.HttpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false));
-                }
-
-
-                var result = await jsonPlaceHolderProxyService.GetTodosAsync(new GetTodosRequest
-                {
-                    
-                    Items = 2
-                }).ConfigureAwait(false);
+                await Task.WhenAll
+                (
+                    Request(correlationService, guidService, durableRestService),
+                    RequestOfT(correlationService, guidService, durableRestService),
+                    RequestUsingProxy(jsonPlaceHolderProxyService, correlationService, guidService)
+                ).ConfigureAwait(false);
 
                 Console.WriteLine("Flush Telemetry");
                 await telemetryService.FlushAsync().ConfigureAwait(false);
@@ -105,6 +73,58 @@ namespace DickinsonBros.DurableRest.Runner
             }
         }
 
+        private async Task Request(ICorrelationService correlationService, IGuidService guidService, IDurableRestService durableRestService)
+        {
+            correlationService.CorrelationId = guidService.NewGuid().ToString();
+
+            using var httpClient = new HttpClient
+            {
+                BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+            };
+
+            var httpRequestMessage = new HttpRequestMessage
+            {
+                Method = HttpMethod.Get,
+                RequestUri = new Uri("todos/1", UriKind.Relative)
+            };
+
+            var retrys = 3;
+            var timeoutInSeconds = 30;
+            var restResponse = await durableRestService.ExecuteAsync(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
+        }
+
+        private async Task RequestOfT(ICorrelationService correlationService, IGuidService guidService, IDurableRestService durableRestService)
+        {
+            correlationService.CorrelationId = guidService.NewGuid().ToString();
+
+            using var httpClient = new HttpClient
+            {
+                BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+            };
+
+            var httpRequestMessage = new HttpRequestMessage
+            {
+                Method = HttpMethod.Get,
+                RequestUri = new Uri("todos/1", UriKind.Relative)
+            };
+
+            var retrys = 3;
+            var timeoutInSeconds = 30;
+
+            var restResponse = await durableRestService.ExecuteAsync<Todo>(httpClient, httpRequestMessage, retrys, timeoutInSeconds).ConfigureAwait(false);
+
+            Console.WriteLine("Content: " + await restResponse.HttpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false));
+        }
+
+        private async Task RequestUsingProxy(IJsonPlaceHolderProxyService jsonPlaceHolderProxyService, ICorrelationService correlationService, IGuidService guidService)
+        {
+            correlationService.CorrelationId = guidService.NewGuid().ToString();
+            await jsonPlaceHolderProxyService.GetTodosAsync(new GetTodosRequest
+            {
+                Items = 2
+            }).ConfigureAwait(false);
+        }
+
         private void ConfigureServices(IServiceCollection services, Services.ApplicationLifetime applicationLifetime)
         {
             services.AddOptions();
@@ -115,6 +135,9 @@ namespace DickinsonBros.DurableRest.Runner
 
             //Add DateTime Service
             services.AddDateTimeService();
+
+            //Add Guid Service
+            services.AddGuidService();
 
             //Add Stopwatch Service
             services.AddStopwatchService();
