@@ -150,7 +150,6 @@ namespace DickinsonBros.DurableRest.Tests
             );
         }
 
-
         [TestMethod]
         public async Task ExecuteAsync_NoCorrelationIdHeaderAndNoCorrelationServiceCorrelationId_NewGuidCalled()
         {
@@ -330,6 +329,121 @@ namespace DickinsonBros.DurableRest.Tests
                         correlationService => correlationService.CorrelationId,
                         Times.Exactly(2)
                     );
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_VaildInput_LogsRequestRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+
+                    var messagesObserved = new List<string>();
+                    var propertiesObserved = new List<Dictionary<string, object>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogInformationRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, IDictionary<string, object>>((message, properties) =>
+                        {
+                            messagesObserved.Add(message);
+                            propertiesObserved.Add((Dictionary<string, object>)properties);
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+
+                    //Assert
+                    var index = messagesObserved.FindIndex(message => message == uutConcrete.DURABLE_REST_MESSAGE_REQUEST);
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            messagesObserved[index],
+                            propertiesObserved[index]
+                        )
+                    );
+                    Assert.AreEqual(1, messagesObserved.Where(message => message == uutConcrete.DURABLE_REST_MESSAGE_REQUEST).Count());
+                    Assert.AreEqual(uutConcrete.DURABLE_REST_MESSAGE_REQUEST, messagesObserved[index]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[index][BASEURL].ToString());
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[index][REQUEST_CONTENT]);
+
+                    //HttpClient Mutates httpRequestMessage, Thus hard coding expected value 
+                    Assert.AreEqual("todos/", (string)propertiesObserved[index][RESOURCE]);
+
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
@@ -682,6 +796,249 @@ namespace DickinsonBros.DurableRest.Tests
         }
 
         [TestMethod]
+        public async Task ExecuteAsync_ResponseIsSuccessful_LogResponseRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        StatusCode = System.Net.HttpStatusCode.OK,
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+
+                    var messagesObserved = new List<string>();
+                    var propertiesObserved = new List<Dictionary<string, object>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogInformationRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, IDictionary<string, object>>((message, properties) =>
+                        {
+                            messagesObserved.Add(message);
+                            propertiesObserved.Add((Dictionary<string, object>)properties);
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    var index = messagesObserved.FindIndex(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE);
+
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            messagesObserved[index],
+                            propertiesObserved[index]
+                        )
+                    );
+
+                    Assert.AreEqual(1, messagesObserved.Where(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE).Count());
+                    Assert.AreEqual(uutConcrete.DURABLE_REST_MESSAGE_RESPONSE, messagesObserved[index]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[index][BASEURL].ToString());
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[index][REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[index][RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[index][ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[index][STATUS_CODE]);
+
+                    //HttpClient Mutates httpRequestMessage, Thus hard coding expected value 
+                    Assert.AreEqual("/todos/", (string)propertiesObserved[index][RESOURCE]);
+
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_ResponseIsNotSuccessful_LogResponseRedactedAsError()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        StatusCode = System.Net.HttpStatusCode.InternalServerError,
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+
+                    var messagesObserved = new List<string>();
+                    var propertiesObserved = new List<Dictionary<string, object>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogErrorRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<Exception>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
+                        {
+                            messagesObserved.Add(message);
+                            propertiesObserved.Add((Dictionary<string, object>)properties);
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
+
+                    //Assert
+                    var index = messagesObserved.FindIndex(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE);
+
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            messagesObserved[index],
+                            It.IsAny<Exception>(),
+                            propertiesObserved[index]
+
+                        )
+                    );
+
+                    Assert.AreEqual(1, messagesObserved.Where(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE).Count());
+                    Assert.AreEqual(uutConcrete.DURABLE_REST_MESSAGE_RESPONSE, messagesObserved[index]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[index][BASEURL].ToString());
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[index][REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[index][RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[index][ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[index][STATUS_CODE]);
+
+                    //HttpClient Mutates httpRequestMessage, Thus hard coding expected value 
+                    Assert.AreEqual("/todos/", (string)propertiesObserved[index][RESOURCE]);
+
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
         public async Task ExecuteAsync_FailedAndRetrys_AttemptsExpected()
         {
             await RunDependencyInjectedTestAsync
@@ -770,229 +1127,6 @@ namespace DickinsonBros.DurableRest.Tests
 
                     //Assert
                     Assert.AreEqual(3, (int)propertiesObserved[ATTEMPTS]);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsync_RequestIsSuccessful_LogInformationRedacted()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    var retrys = 0;
-                    var timeout = 30.0;
-
-                    //HTTP
-                    var httpRequestMessage = new HttpRequestMessage
-                    {
-                        RequestUri = new Uri("todos/", UriKind.Relative),
-                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
-                    };
-
-                    var httpResponseMessage = new HttpResponseMessage()
-                    {
-                        
-                        StatusCode = System.Net.HttpStatusCode.OK,
-                        Content = new StringContent("{\"name\":\"Same Doe\",\"age\":35}", Encoding.UTF8, "application/json")
-                    };
-
-                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
-
-                    httpMessageHandlerMock
-                   .Protected()
-                   .Setup<Task<HttpResponseMessage>>(
-                      "SendAsync",
-                      ItExpr.IsAny<HttpRequestMessage>(),
-                      ItExpr.IsAny<CancellationToken>())
-                   .ReturnsAsync(httpResponseMessage);
-
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
-                    {
-                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
-                    };
-
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogInformationRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, IDictionary<string, object>>((message, properties) =>
-                        {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  DateTime
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(new System.DateTime(2020, 1, 1));
-
-                    //  Stopwatch
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Start());
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Stop());
-
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(100);
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogInformationRedacted
-                        (
-                            messageObserved,
-                            propertiesObserved
-                        )
-                    );
-
-                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
-                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
-                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
-                },
-                serviceCollection => ConfigureServices(serviceCollection)
-            );
-        }
-
-        [TestMethod]
-        public async Task ExecuteAsync_RequestIsNotSuccessful_LogErrorRedacted()
-        {
-            await RunDependencyInjectedTestAsync
-            (
-                async (serviceProvider) =>
-                {
-                    //Setup
-
-                    //  Prams
-                    var retrys = 0;
-                    var timeout = 30.0;
-
-                    //HTTP
-                    var httpRequestMessage = new HttpRequestMessage
-                    {
-                        RequestUri = new Uri("todos/", UriKind.Relative),
-                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
-                    };
-
-                    var httpResponseMessage = new HttpResponseMessage()
-                    {
-
-                        StatusCode = System.Net.HttpStatusCode.InternalServerError,
-                        Content = new StringContent("{\"name\":\"Same Doe\",\"age\":35}", Encoding.UTF8, "application/json")
-                    };
-
-                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
-
-                    httpMessageHandlerMock
-                   .Protected()
-                   .Setup<Task<HttpResponseMessage>>(
-                      "SendAsync",
-                      ItExpr.IsAny<HttpRequestMessage>(),
-                      ItExpr.IsAny<CancellationToken>())
-                   .ReturnsAsync(httpResponseMessage);
-
-                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
-                    {
-                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
-                    };
-
-                    //  Logging
-                    string messageObserved = null;
-                    var exceptionObserved = (Exception)null;
-                    Dictionary<string, object> propertiesObserved = null;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
-                    loggingServiceMock
-                        .Setup
-                        (
-                            loggingService => loggingService.LogErrorRedacted
-                            (
-                                It.IsAny<string>(),
-                                It.IsAny<Exception>(),
-                                It.IsAny<IDictionary<string, object>>()
-                            )
-                        )
-                        .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
-                        {
-                            messageObserved = message;
-                            exceptionObserved = exception;
-                            propertiesObserved = (Dictionary<string, object>)properties;
-                        });
-
-                    //  DateTime
-                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
-                    dateTimeServiceMock
-                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
-                        .Returns(new System.DateTime(2020, 1, 1));
-
-                    //  Stopwatch
-                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Start());
-
-                    stopwatchServiceMock
-                    .Setup(stopwatchService => stopwatchService.Stop());
-
-                    stopwatchServiceMock
-                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
-                        .Returns(100);
-
-                    //  Durable Rest Service
-                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
-                    var uutConcrete = (DurableRestService)uut;
-
-                    //Act
-                    var observed = await uutConcrete.ExecuteAsync(httpClientMock, httpRequestMessage, retrys, timeout);
-
-                    //Assert
-                    loggingServiceMock.Verify
-                    (
-                        loggingService => loggingService.LogErrorRedacted
-                        (
-                            messageObserved,
-                            exceptionObserved,
-                            propertiesObserved
-                        )
-                    );
-
-                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
-                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
-                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
@@ -1205,6 +1339,123 @@ namespace DickinsonBros.DurableRest.Tests
         #endregion
 
         #region ExecuteAsyncOfT
+
+        [TestMethod]
+        public async Task ExecuteAsyncOfT_VaildInput_LogsRequestRedacted()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+
+                    //  Prams
+                    var retrys = 0;
+                    var timeout = 30.0;
+
+                    //HTTP
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        RequestUri = new Uri("todos/", UriKind.Relative),
+                        Content = new StringContent("{\"name\":\"John Doe\",\"age\":33}", Encoding.UTF8, "application/json")
+                    };
+
+                    var httpResponseMessage = new HttpResponseMessage()
+                    {
+                        Content = new StringContent(
+@"{
+  ""userId"": 0,
+  ""id"": 0,
+  ""title"": null,
+  ""completed"": false
+}"
+                        , Encoding.UTF8, "application/json")
+                    };
+
+                    var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
+
+                    httpMessageHandlerMock
+                   .Protected()
+                   .Setup<Task<HttpResponseMessage>>(
+                      "SendAsync",
+                      ItExpr.IsAny<HttpRequestMessage>(),
+                      ItExpr.IsAny<CancellationToken>())
+                   .ReturnsAsync(httpResponseMessage);
+
+                    var httpClientMock = new HttpClient(httpMessageHandlerMock.Object)
+                    {
+                        BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
+                    };
+
+                    var messagesObserved = new List<string>();
+                    var propertiesObserved = new List<Dictionary<string, object>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
+                    loggingServiceMock
+                        .Setup
+                        (
+                            loggingService => loggingService.LogInformationRedacted
+                            (
+                                It.IsAny<string>(),
+                                It.IsAny<IDictionary<string, object>>()
+                            )
+                        )
+                        .Callback<string, IDictionary<string, object>>((message, properties) =>
+                        {
+                            messagesObserved.Add(message);
+                            propertiesObserved.Add((Dictionary<string, object>)properties);
+                        });
+
+                    //  DateTime
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(new System.DateTime(2020, 1, 1));
+
+                    //  Stopwatch
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Start());
+
+                    stopwatchServiceMock
+                    .Setup(stopwatchService => stopwatchService.Stop());
+
+                    stopwatchServiceMock
+                        .Setup(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                        .Returns(100);
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
+
+
+                    //Assert
+                    var index = messagesObserved.FindIndex(message => message == uutConcrete.DURABLE_REST_MESSAGE_REQUEST);
+                    loggingServiceMock.Verify
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            messagesObserved[index],
+                            propertiesObserved[index]
+                        )
+                    );
+                    Assert.AreEqual(1, messagesObserved.Where(message => message == uutConcrete.DURABLE_REST_MESSAGE_REQUEST).Count());
+                    Assert.AreEqual(uutConcrete.DURABLE_REST_MESSAGE_REQUEST, messagesObserved[index]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[index][BASEURL].ToString());
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[index][REQUEST_CONTENT]);
+
+                    //HttpClient Mutates httpRequestMessage, Thus hard coding expected value 
+                    Assert.AreEqual("todos/", (string)propertiesObserved[index][RESOURCE]);
+
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+
         [TestMethod]
         public async Task ExecuteAsyncOfT_VaildInput_StopWatchStartCalled()
         {
@@ -1487,7 +1738,7 @@ namespace DickinsonBros.DurableRest.Tests
         }
 
         [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIsSuccessful_LogInformationRedacted()
+        public async Task ExecuteAsyncOfT_ResponseIsSuccessful_LogResponseRedacted()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -1508,6 +1759,7 @@ namespace DickinsonBros.DurableRest.Tests
 
                     var httpResponseMessage = new HttpResponseMessage()
                     {
+                        StatusCode = System.Net.HttpStatusCode.OK,
                         Content = new StringContent(
 @"{
   ""userId"": 0,
@@ -1533,8 +1785,8 @@ namespace DickinsonBros.DurableRest.Tests
                         BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
                     };
 
-                    string messageObserved = null;
-                    Dictionary<string, object> propertiesObserved = null;
+                    var messagesObserved = new List<string>();
+                    var propertiesObserved = new List<Dictionary<string, object>>();
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock
                         .Setup
@@ -1547,8 +1799,8 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                         .Callback<string, IDictionary<string, object>>((message, properties) =>
                         {
-                            messageObserved = message;
-                            propertiesObserved = (Dictionary<string, object>)properties;
+                            messagesObserved.Add(message);
+                            propertiesObserved.Add((Dictionary<string, object>)properties);
                         });
 
                     //  DateTime
@@ -1578,30 +1830,35 @@ namespace DickinsonBros.DurableRest.Tests
                     var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
+                    var index = messagesObserved.FindIndex(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE);
+
                     loggingServiceMock.Verify
                     (
                         loggingService => loggingService.LogInformationRedacted
                         (
-                            messageObserved,
-                            propertiesObserved
+                            messagesObserved[index],
+                            propertiesObserved[index]
                         )
                     );
 
-                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
-                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
-                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
+                    Assert.AreEqual(1, messagesObserved.Where(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE).Count());
+                    Assert.AreEqual(uutConcrete.DURABLE_REST_MESSAGE_RESPONSE, messagesObserved[index]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[index][BASEURL].ToString());
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[index][REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[index][RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[index][ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[index][STATUS_CODE]);
+
+                    //HttpClient Mutates httpRequestMessage, Thus hard coding expected value 
+                    Assert.AreEqual("/todos/", (string)propertiesObserved[index][RESOURCE]);
+
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );
         }
 
         [TestMethod]
-        public async Task ExecuteAsyncOfT_RequestIsNotSuccessful_LogErrorRedacted()
+        public async Task ExecuteAsyncOfT_ResponseIsNotSuccessful_LogResponseRedactedAsError()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -1630,7 +1887,7 @@ namespace DickinsonBros.DurableRest.Tests
   ""title"": null,
   ""completed"": false
 }"
-    , Encoding.UTF8, "application/json")
+                        , Encoding.UTF8, "application/json")
                     };
 
                     var httpMessageHandlerMock = new Mock<HttpMessageHandler>();
@@ -1648,10 +1905,8 @@ namespace DickinsonBros.DurableRest.Tests
                         BaseAddress = new Uri("https://jsonplaceholder.typicode.com/")
                     };
 
-                    //  Logging
-                    string messageObserved = null;
-                    var exceptionObserved = (Exception)null;
-                    Dictionary<string, object> propertiesObserved = null;
+                    var messagesObserved = new List<string>();
+                    var propertiesObserved = new List<Dictionary<string, object>>();
                     var loggingServiceMock = serviceProvider.GetMock<ILoggingService<DurableRestService>>();
                     loggingServiceMock
                         .Setup
@@ -1665,9 +1920,8 @@ namespace DickinsonBros.DurableRest.Tests
                         )
                         .Callback<string, Exception, IDictionary<string, object>>((message, exception, properties) =>
                         {
-                            messageObserved = message;
-                            exceptionObserved = exception;
-                            propertiesObserved = (Dictionary<string, object>)properties;
+                            messagesObserved.Add(message);
+                            propertiesObserved.Add((Dictionary<string, object>)properties);
                         });
 
                     //  DateTime
@@ -1697,24 +1951,30 @@ namespace DickinsonBros.DurableRest.Tests
                     var observed = await uutConcrete.ExecuteAsync<DataClass>(httpClientMock, httpRequestMessage, retrys, timeout);
 
                     //Assert
+                    var index = messagesObserved.FindIndex(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE);
+
                     loggingServiceMock.Verify
                     (
                         loggingService => loggingService.LogErrorRedacted
                         (
-                            messageObserved,
-                            exceptionObserved,
-                            propertiesObserved
+                            messagesObserved[index],
+                            It.IsAny<Exception>(),
+                            propertiesObserved[index]
+
                         )
                     );
 
-                    Assert.AreEqual(DurableRestService.DURABLE_REST_MESSAGE, messageObserved);
-                    Assert.AreEqual(1, (int)propertiesObserved[ATTEMPTS]);
-                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[BASEURL].ToString());
-                    Assert.AreEqual(httpRequestMessage.RequestUri.AbsolutePath, (string)propertiesObserved[RESOURCE]);
-                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[REQUEST_CONTENT]);
-                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[RESPONSE_CONTENT]);
-                    Assert.IsTrue((int)propertiesObserved[ELAPSED_MILLISECONDS] >= 0);
-                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[STATUS_CODE]);
+                    Assert.AreEqual(1, messagesObserved.Where(message => message == uutConcrete.DURABLE_REST_MESSAGE_RESPONSE).Count());
+                    Assert.AreEqual(uutConcrete.DURABLE_REST_MESSAGE_RESPONSE, messagesObserved[index]);
+                    Assert.AreEqual(httpClientMock.BaseAddress, propertiesObserved[index][BASEURL].ToString());
+                    Assert.AreEqual(await httpRequestMessage.Content.ReadAsStringAsync(), propertiesObserved[index][REQUEST_CONTENT]);
+                    Assert.AreEqual(await httpResponseMessage.Content.ReadAsStringAsync(), propertiesObserved[index][RESPONSE_CONTENT]);
+                    Assert.IsTrue((int)propertiesObserved[index][ELAPSED_MILLISECONDS] >= 0);
+                    Assert.AreEqual(httpResponseMessage.StatusCode, propertiesObserved[index][STATUS_CODE]);
+
+                    //HttpClient Mutates httpRequestMessage, Thus hard coding expected value 
+                    Assert.AreEqual("/todos/", (string)propertiesObserved[index][RESOURCE]);
+
                 },
                 serviceCollection => ConfigureServices(serviceCollection)
             );

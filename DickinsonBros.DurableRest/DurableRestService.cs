@@ -28,7 +28,8 @@ namespace DickinsonBros.DurableRest
         internal readonly IGuidService _guidService;
         internal readonly ILoggingService<DurableRestService> _loggingService;
         internal const string CORRELATION_ID = "X-Correlation-ID";
-        internal const string DURABLE_REST_MESSAGE = "DurableRest";
+        internal readonly string DURABLE_REST_MESSAGE_REQUEST = $"{nameof(DurableRestService)} - Request";
+        internal readonly string DURABLE_REST_MESSAGE_RESPONSE = $"{nameof(DurableRestService)} - Response";
 
         public DurableRestService
         (
@@ -112,6 +113,7 @@ namespace DickinsonBros.DurableRest
 
             do
             {
+                await LogRequest(httpRequestMessage, httpClient, attempts).ConfigureAwait(false);
                 var cts = new CancellationTokenSource();
                 cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
                 stopwatchService.Start();
@@ -142,6 +144,7 @@ namespace DickinsonBros.DurableRest
 
                 attempts++;
 
+                await LogResponse(httpRequestMessage, httpResponseMessage, httpClient, attempts, (int)stopwatchService.ElapsedMilliseconds).ConfigureAwait(false);
                 if (httpResponseMessage.IsSuccessStatusCode)
                 {
                     break;
@@ -149,13 +152,33 @@ namespace DickinsonBros.DurableRest
                 httpRequestMessage = await CloneAsync(httpRequestMessage).ConfigureAwait(false);
             } while (retrys >= attempts);
 
-            await LogDurableRestResult(httpRequestMessage, httpResponseMessage, httpClient, attempts, (int)stopwatchService.ElapsedMilliseconds).ConfigureAwait(false);
-
             return httpResponseMessage;
         }
 
+        public async Task LogRequest
+      (
+          HttpRequestMessage httpRequestMessage,
+          HttpClient httpClient,
+          int attempts
+      )
+        {
+            var properties = new Dictionary<string, object>
+            {
+                { "Attempts", attempts },
+                { "BaseUrl", httpClient.BaseAddress },
+                { "Resource", httpRequestMessage.RequestUri.OriginalString },
+                { "RequestContent", httpRequestMessage.Content != null ? await httpRequestMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
+            };
 
-        public async Task LogDurableRestResult
+            _loggingService.LogInformationRedacted
+            (
+                DURABLE_REST_MESSAGE_REQUEST,
+                properties
+            );
+
+        }
+
+        public async Task LogResponse
         (
             HttpRequestMessage httpRequestMessage,
             HttpResponseMessage httpResponseMessage,
@@ -168,7 +191,7 @@ namespace DickinsonBros.DurableRest
             {
                 { "Attempts", attempts },
                 { "BaseUrl", httpClient.BaseAddress },
-                { "Resource", httpRequestMessage.RequestUri.AbsolutePath },
+                { "Resource", httpRequestMessage.RequestUri.LocalPath },
                 { "RequestContent", httpRequestMessage.Content != null ? await httpRequestMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
                 { "ResponseContent", httpResponseMessage?.Content != null ? await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false) : null },
                 { "ElapsedMilliseconds", elapsedMilliseconds },
@@ -179,7 +202,7 @@ namespace DickinsonBros.DurableRest
             {
                 _loggingService.LogErrorRedacted
                 (
-                    DURABLE_REST_MESSAGE,
+                    DURABLE_REST_MESSAGE_RESPONSE,
                     null,
                     properties
                 );
@@ -188,7 +211,7 @@ namespace DickinsonBros.DurableRest
 
             _loggingService.LogInformationRedacted
             (
-                DURABLE_REST_MESSAGE,
+                DURABLE_REST_MESSAGE_RESPONSE,
                 properties
             );
 
