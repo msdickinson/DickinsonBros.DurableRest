@@ -21,6 +21,7 @@ using DickinsonBros.Telemetry.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
@@ -41,15 +42,15 @@ namespace DickinsonBros.DurableRest.Runner
         {
             try
             {
-                using var applicationLifetime = new Services.ApplicationLifetime();
                 var services = InitializeDependencyInjection();
-                ConfigureServices(services, applicationLifetime);
+                ConfigureServices(services);
                 using var provider = services.BuildServiceProvider();
                 var telemetryService = provider.GetRequiredService<ITelemetryService>();
                 var durableRestService = provider.GetRequiredService<IDurableRestService>();
                 var guidService = provider.GetRequiredService<IGuidService>();
                 var jsonPlaceHolderProxyService = provider.GetRequiredService<IJsonPlaceHolderProxyService>();
                 var correlationService = provider.GetRequiredService<ICorrelationService>();
+                var hostApplicationLifetime = provider.GetService<IHostApplicationLifetime>();
 
                 await Task.WhenAll
                 (
@@ -61,7 +62,7 @@ namespace DickinsonBros.DurableRest.Runner
                 Console.WriteLine("Flush Telemetry");
                 await telemetryService.FlushAsync().ConfigureAwait(false);
 
-                applicationLifetime.StopApplication();
+                hostApplicationLifetime.StopApplication();
             }
             catch (Exception e)
             {
@@ -125,39 +126,19 @@ namespace DickinsonBros.DurableRest.Runner
             }).ConfigureAwait(false);
         }
 
-        private void ConfigureServices(IServiceCollection services, Services.ApplicationLifetime applicationLifetime)
+        private void ConfigureServices(IServiceCollection services)
         {
             services.AddOptions();
             services.AddLogging(cfg => cfg.AddConsole());
 
-            //Add ApplicationLifetime
-            services.AddSingleton<IApplicationLifetime>(applicationLifetime);
-
-            //Add DateTime Service
+            services.AddSingleton<IHostApplicationLifetime, HostApplicationLifetime>();
             services.AddDateTimeService();
-
-            //Add Guid Service
             services.AddGuidService();
-
-            //Add Stopwatch Service
             services.AddStopwatchService();
-
-            //Add Logging Service
             services.AddLoggingService();
-
-            //Add Redactor Service
             services.AddRedactorService();
-            services.Configure<RedactorServiceOptions>(_configuration.GetSection(nameof(RedactorServiceOptions)));
-
-            //Add Certificate Encryption Service
-            services.AddCertificateEncryptionService<CertificateEncryptionServiceOptions>();
-            services.Configure<CertificateEncryptionServiceOptions<RunnerCertificateEncryptionServiceOptions>>(_configuration.GetSection(nameof(RunnerCertificateEncryptionServiceOptions)));
-
-            //Add Telemetry Service
+            services.AddConfigurationEncryptionService();
             services.AddTelemetryService();
-            services.AddSingleton<IConfigureOptions<TelemetryServiceOptions>, TelemetryServiceOptionsConfigurator>();
-
-            //Add DurableRest Service
             services.AddDurableRestService();
 
             //Add Proxy (JsonPlaceHolderProxy)
