@@ -219,12 +219,18 @@ namespace DickinsonBros.DurableRest
 
         public void InsertDurableRestResult(string name, int statusCode, int elapsedMilliseconds)
         {
-            var telemetryState = statusCode switch
+            var telemetryState = TelemetryState.Failed;
+
+            if (statusCode >= 100 && statusCode < 400)
             {
-                int _ when (statusCode >= 200 && statusCode < 300) => TelemetryState.Successful,
-                int _ when (statusCode >= 400 && statusCode < 500) => TelemetryState.BadRequest,
-                _ => TelemetryState.Failed
-            };
+                telemetryState = TelemetryState.Successful;
+            }
+
+            else if (statusCode >= 400 && statusCode < 500)
+            {
+                telemetryState = TelemetryState.BadRequest;
+            }
+       
 
             _telemetryService.Insert(new TelemetryData
             {

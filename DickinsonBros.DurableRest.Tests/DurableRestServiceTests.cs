@@ -2230,6 +2230,102 @@ namespace DickinsonBros.DurableRest.Tests
         #region InsertDurableRestResult
 
         [TestMethod]
+        public async Task InsertDurableRestResult_StatusCodeIs0xx_InsertSuccessfulTelemetry()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //  DateTime
+                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(dateTimeExpected);
+
+                    //  Telemetry
+                    var nameExpected = "name";
+                    var elapsedMillisecondsExpected = 100;
+                    var statusCode = 000;
+
+                    var telemetryDataObserved = (TelemetryData)null;
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    telemetryServiceMock
+                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
+                        .Callback<TelemetryData>((telemetryData) =>
+                        {
+                            telemetryDataObserved = telemetryData;
+                        });
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    uutConcrete.InsertDurableRestResult(nameExpected, statusCode, elapsedMillisecondsExpected);
+
+                    //Assert
+                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
+                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
+                    Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryState.Failed, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task InsertDurableRestResult_StatusCodeIs1xx_InsertSuccessfulTelemetry()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //  DateTime
+                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(dateTimeExpected);
+
+                    //  Telemetry
+                    var nameExpected = "name";
+                    var elapsedMillisecondsExpected = 100;
+                    var statusCode = 100;
+
+                    var telemetryDataObserved = (TelemetryData)null;
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    telemetryServiceMock
+                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
+                        .Callback<TelemetryData>((telemetryData) =>
+                        {
+                            telemetryDataObserved = telemetryData;
+                        });
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    uutConcrete.InsertDurableRestResult(nameExpected, statusCode, elapsedMillisecondsExpected);
+
+                    //Assert
+                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
+                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
+                    Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
         public async Task InsertDurableRestResult_StatusCodeIs2xx_InsertSuccessfulTelemetry()
         {
             await RunDependencyInjectedTestAsync
@@ -2247,6 +2343,54 @@ namespace DickinsonBros.DurableRest.Tests
                     var nameExpected = "name";
                     var elapsedMillisecondsExpected = 100;
                     var statusCode = 200;
+
+                    var telemetryDataObserved = (TelemetryData)null;
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    telemetryServiceMock
+                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
+                        .Callback<TelemetryData>((telemetryData) =>
+                        {
+                            telemetryDataObserved = telemetryData;
+                        });
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    uutConcrete.InsertDurableRestResult(nameExpected, statusCode, elapsedMillisecondsExpected);
+
+                    //Assert
+                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
+                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
+                    Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+
+        [TestMethod]
+        public async Task InsertDurableRestResult_StatusCodeIs3xx_InsertSuccessfulTelemetry()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //  DateTime
+                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(dateTimeExpected);
+
+                    //  Telemetry
+                    var nameExpected = "name";
+                    var elapsedMillisecondsExpected = 100;
+                    var statusCode = 300;
 
                     var telemetryDataObserved = (TelemetryData)null;
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
@@ -2324,7 +2468,100 @@ namespace DickinsonBros.DurableRest.Tests
                 serviceCollection => ConfigureServices(serviceCollection)
             );
         }
+        [TestMethod]
+        public async Task InsertDurableRestResult_StatusCodeIs401_InsertBadRequestTelemetry()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //  DateTime
+                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(dateTimeExpected);
 
+                    //  Telemetry
+                    var nameExpected = "name";
+                    var elapsedMillisecondsExpected = 100;
+                    var statusCode = 401;
+
+                    var telemetryDataObserved = (TelemetryData)null;
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    telemetryServiceMock
+                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
+                        .Callback<TelemetryData>((telemetryData) =>
+                        {
+                            telemetryDataObserved = telemetryData;
+                        });
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    uutConcrete.InsertDurableRestResult(nameExpected, statusCode, elapsedMillisecondsExpected);
+
+                    //Assert
+                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
+                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
+                    Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryState.BadRequest, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
+        [TestMethod]
+        public async Task InsertDurableRestResult_StatusCodeIs5xx_InsertSuccessfulTelemetry()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //  DateTime
+                    var dateTimeExpected = new System.DateTime(2020, 1, 1);
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                        .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                        .Returns(dateTimeExpected);
+
+                    //  Telemetry
+                    var nameExpected = "name";
+                    var elapsedMillisecondsExpected = 100;
+                    var statusCode = 500;
+
+                    var telemetryDataObserved = (TelemetryData)null;
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    telemetryServiceMock
+                        .Setup(telemetryService => telemetryService.Insert(It.IsAny<TelemetryData>()))
+                        .Callback<TelemetryData>((telemetryData) =>
+                        {
+                            telemetryDataObserved = telemetryData;
+                        });
+
+                    //  Durable Rest Service
+                    var uut = serviceProvider.GetRequiredService<IDurableRestService>();
+                    var uutConcrete = (DurableRestService)uut;
+
+                    //Act
+                    uutConcrete.InsertDurableRestResult(nameExpected, statusCode, elapsedMillisecondsExpected);
+
+                    //Assert
+                    Assert.AreEqual(dateTimeExpected, telemetryDataObserved.DateTime);
+                    Assert.AreEqual(elapsedMillisecondsExpected, telemetryDataObserved.ElapsedMilliseconds);
+                    Assert.AreEqual(nameExpected, telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryState.Failed, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual(TelemetryType.Rest, telemetryDataObserved.TelemetryType);
+
+                    await Task.CompletedTask;
+                },
+                serviceCollection => ConfigureServices(serviceCollection)
+            );
+        }
         [TestMethod]
         public async Task InsertDurableRestResult_RequestIsNot2xxOr4xx_InsertFailedTelemetry()
         {
