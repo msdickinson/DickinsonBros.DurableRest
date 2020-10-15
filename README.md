@@ -90,7 +90,7 @@ await telemetryService.FlushAsync().ConfigureAwait(false);
           ElapsedMilliseconds: 153
           StatusCode: 200
       
-Note: Logs can be redacted via configuration (see https://github.com/msdickinson/DickinsonBros.Redactor)
+<b>Telemetry</b>
 
 ![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.DurableRest/develop/TelemetryRestSample.PNG)
 
